@@ -1,0 +1,33 @@
+name: ADR Guard - Architecture Decision Validator
+description: Validate and index Architecture Decision Records (ADRs) with deterministic checks and GitHub file annotations.
+author: Rodrigo de Oliveira
+
+inputs:
+  path:
+    description: Repository-relative ADR directory. Must stay inside GITHUB_WORKSPACE.
+    required: false
+    default: docs/adr
+  command:
+    description: ADR Guard command to run. Allowed values are 'check' and 'index'.
+    required: false
+    default: check
+  version:
+    description: Optional exact ADR Guard image version (X.Y.Z or vX.Y.Z). When omitted, @vX.Y.Z selects the exact image and @vX selects the matching moving major image.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Run ADR Guard
+      shell: bash
+      env:
+        ADR_GUARD_PATH: ${{ inputs.path }}
+        ADR_GUARD_COMMAND: ${{ inputs.command }}
+        ADR_GUARD_VERSION: ${{ inputs.version }}
+        ADR_GUARD_ACTION_REF: ${{ github.action_ref }}
+      run: bash "${{ github.action_path }}/scripts/github-action.sh"
+
+branding:
+  icon: shield
+  color: purple

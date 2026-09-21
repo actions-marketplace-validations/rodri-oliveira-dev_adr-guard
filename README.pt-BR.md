@@ -8,6 +8,8 @@
 
 [English](README.md)
 
+**Consumidores da GitHub Action:** consulte o [guia de consumo](docs/github-action.pt-BR.md), a [política de release](docs/github-action-release.pt-BR.md), o [modelo de segurança](docs/github-action-security.pt-BR.md), as [evidências de verificação externa](docs/github-action-external-verification.pt-BR.md) e o [checklist de publicação no Marketplace](docs/github-marketplace.pt-BR.md). A verificação externa pré-release passou, mas a tag `@v1` e a listagem no Marketplace ainda são **futuras**. O suporte está em [SUPPORT.md](SUPPORT.md) e relatos de segurança seguem [SECURITY.md](SECURITY.md).
+
 ADR Guard é uma ferramenta de linha de comando para .NET focada em validar e indexar Architecture Decision Records (ADRs).
 
 A proposta é permitir que convenções de ADR sejam explícitas, revisáveis e verificáveis tanto no desenvolvimento local quanto no CI, sem adicionar dependências pesadas em runtime.
@@ -70,6 +72,86 @@ docker run --rm \
 A imagem executa como usuário não-root. Releases incluem metadados OCI, attestations de SBOM e provenance, e o caminho de CI é protegido por Hadolint, smoke tests, atualizações de imagem-base pelo Dependabot e análise de vulnerabilidades com Trivy.
 
 Consulte o [guia de container e supply chain](docs/container.pt-BR.md) para volumes graváveis, credenciais de providers de IA, pin por digest imutável, tags e detalhes de verificação.
+
+## GitHub Action
+
+O ADR Guard fornece uma composite GitHub Action que executa diretamente a imagem publicada no GHCR, portanto o repositório consumidor não precisa instalar o .NET SDK. O checkout deve acontecer antes da Action, que suporta runners Linux com Docker funcional, como `ubuntu-latest`.
+
+> A referência móvel `@v1` ainda não foi publicada. Trate exemplos com `uses: rodri-oliveira-dev/adr-guard@v1` como futuros até que o workflow de release crie e verifique essa tag.
+
+Para workflows completos de pull request/main, inputs, annotations, configuração de checks obrigatórios, troubleshooting e status de release/Marketplace, consulte o [guia de consumo da GitHub Action](docs/github-action.pt-BR.md).
+
+A operação padrão valida `docs/adr`:
+
+```yaml
+name: Validação de ADRs
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  adr-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validar ADRs
+        uses: rodri-oliveira-dev/adr-guard@vX.Y.Z
+        with:
+          path: docs/adr
+          command: check
+```
+
+As entradas são pequenas e correspondem diretamente ao comportamento suportado pelo CLI:
+
+| Entrada | Padrão | Valores permitidos / política |
+| --- | --- | --- |
+| `path` | `docs/adr` | Diretório de ADRs relativo ao repositório. Caminhos absolutos, travessia com `..`, diretórios inexistentes e caminhos que resolvam para fora de `GITHUB_WORKSPACE` são rejeitados. |
+| `command` | `check` | `check` ou `index`. |
+| `version` | vazio | Versão exata opcional da imagem, no formato `X.Y.Z` ou `vX.Y.Z`. Quando omitida, `@vX.Y.Z` seleciona a imagem exata e `@vX` seleciona a tag major móvel correspondente. Pins por SHA/branch exigem versão exata explícita. |
+
+A seleção de versão nunca faz fallback para `latest`. Com `uses: rodri-oliveira-dev/adr-guard@v1.2.3`, a Action executa `ghcr.io/rodri-oliveira-dev/adr-guard:1.2.3`. Com `uses: rodri-oliveira-dev/adr-guard@v1`, ela usa a tag major móvel correspondente da imagem, `:1`. Tags exatas da Action são imutáveis; tags major avançam apenas para releases bem-sucedidas mais novas daquela major. Se a Action estiver fixada por SHA de commit ou por uma branch, informe a versão da imagem explicitamente:
+
+```yaml
+- name: Validar ADRs com a Action fixada por commit
+  uses: rodri-oliveira-dev/adr-guard@<commit-sha>
+  with:
+    path: architecture/adr
+    command: check
+    version: 1.2.3
+```
+
+Consulte a [política de release da GitHub Action](docs/github-action-release.pt-BR.md) para semântica de tags exatas e major, garantias de idempotência, ordem de publicação e procedimento de verificação.
+
+O comando `check` monta o checkout como somente leitura, impedindo que a validação altere arquivos do repositório. No `index`, o workspace continua somente leitura e apenas o diretório de ADRs selecionado é sobreposto como gravável, pois é nele que o CLI gera ou atualiza o `README.md`:
+
+```yaml
+- name: Gerar índice de ADRs
+  uses: rodri-oliveira-dev/adr-guard@vX.Y.Z
+  with:
+    path: docs/adr
+    command: index
+
+- name: Falhar se o índice gerado não estiver commitado
+  run: git diff --exit-code -- docs/adr/README.md
+```
+
+Todas as entradas do usuário são passadas como argumentos separados de processo, e não como fragmentos executáveis de shell. Os caminhos são resolvidos em relação ao checkout antes da execução do Docker, incluindo resolução de symlinks, e o contrato de exit codes do CLI permanece inalterado: `0` para sucesso, `1` para falha de validação, `2` para erro de uso/entrada e `3` para erro operacional.
+
+Quando um comando `check` ou `index` termina com exit code `1`, a Action converte os diagnósticos reconhecidos `ADR001`–`ADR009` do CLI em **anotações de erro associadas ao arquivo** no GitHub, apenas para ADRs existentes dentro do diretório validado. Como o CLI não fornece números de linha confiáveis, as anotações não informam uma linha inventada. Caminhos e mensagens são validados e escapados antes da emissão de workflow commands; saídas inesperadas e erros operacionais não geram anotações de regras ADR.
+
+A Action grava um `GITHUB_STEP_SUMMARY` compacto com resultado, exit code e, nas falhas de validação reconhecidas, quantidade total e contagem por regra. São emitidas **no máximo 50 anotações por execução**; todos os diagnósticos continuam disponíveis no log bruto do CLI. A interpretação de workflow commands fica temporariamente suspensa durante a exibição desse log, evitando que conteúdo não confiável dos ADRs injete anotações ou outros comandos. Uma falha no relatório não altera o exit code original do CLI.
+
+A própria Action não precisa de `GITHUB_TOKEN`, permissão de escrita no repositório, chaves de API de providers ou acesso de rede. Os containers executam com filesystem raiz somente leitura, todas as capabilities Linux removidas, `no-new-privileges` e rede desabilitada. O `draft` assistido por IA e as credenciais dos providers ficam deliberadamente fora do contrato da Action padrão. Consulte o [modelo de segurança da GitHub Action](docs/github-action-security.pt-BR.md) para detalhes sobre registry, secrets, execução não-root e pinning por versão/digest.
+
+Windows, macOS, runners Linux sem Docker funcional e execução como root para `index` gravável não são suportados.
 
 ## Formato dos ADRs
 
@@ -381,14 +463,14 @@ Depois que um pull request é integrado à `main`, o workflow de release aguarda
 
 1. resolve uma versão SemVer estável, começando pelo `VersionPrefix` e incrementando o patch nas releases seguintes;
 2. empacota `RodriOliveira.AdrGuard` com essa versão;
-3. autentica no NuGet.org via Trusted Publishing (OIDC) e publica o pacote;
-4. publica o mesmo pacote no GitHub Packages;
-5. cria ou verifica a tag correspondente `vMAJOR.MINOR.PATCH`;
-6. publica a imagem OCI multi-plataforma no GHCR e no Docker Hub com tags SemVer, metadados OCI, SBOM e attestations de provenance;
-7. valida as arquiteturas e os manifests de attestation publicados;
-8. cria a GitHub Release e anexa o `.nupkg`.
+3. publica o pacote no NuGet.org via Trusted Publishing (OIDC) e no GitHub Packages;
+4. publica a imagem OCI multi-plataforma no GHCR e Docker Hub com tags exata/minor/major/`latest`, metadados OCI, SBOM e attestations de provenance;
+5. verifica arquiteturas, attestations, digest da imagem exata e digest da imagem major móvel;
+6. executa smoke test da resolução de runtime da Action pelas referências exata `vMAJOR.MINOR.PATCH` e major móvel `vMAJOR`;
+7. cria ou verifica a tag exata imutável da Action e avança a tag major móvel somente depois que todos os jobs de publicação de runtime/pacotes terminarem com sucesso;
+8. cria a GitHub Release e anexa o `.nupkg` sem sobrescrever um asset imutável já existente.
 
-O workflow é idempotente para um commit que já possua uma tag de release.
+Uma falha na publicação do container não consegue expor uma nova tag da Action. Reexecuções preservam tags SemVer imutáveis e nunca movem uma tag major de compatibilidade para trás. Consulte a [política de release da GitHub Action](docs/github-action-release.pt-BR.md) para as regras completas de verificação e idempotência.
 
 ## Licença
 

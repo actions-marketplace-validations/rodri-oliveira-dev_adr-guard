@@ -8,6 +8,8 @@
 
 [Português (Brasil)](README.pt-BR.md)
 
+**GitHub Action consumers:** see the [consumer guide](docs/github-action.md), [release policy](docs/github-action-release.md), [security model](docs/github-action-security.md), [external verification evidence](docs/github-action-external-verification.md), and [Marketplace publication checklist](docs/github-marketplace.md). Independent pre-release consumer verification has passed, but the `@v1` compatibility tag and Marketplace listing are still **forthcoming**. Support is available through [SUPPORT.md](SUPPORT.md); security reports follow [SECURITY.md](SECURITY.md).
+
 ADR Guard is a lightweight .NET command-line tool for validating and indexing Architecture Decision Records (ADRs).
 
 It is designed for repositories that want ADR conventions to be explicit, reviewable, and enforceable in local development and CI without introducing a heavy runtime dependency.
@@ -70,6 +72,86 @@ docker run --rm \
 The image runs as a non-root user. Release images include OCI metadata, SBOM and provenance attestations, and the CI path is gated by Hadolint, smoke tests, Dependabot base-image updates, and a Trivy vulnerability scan.
 
 See the [container image and supply-chain guide](docs/container.md) for writable mounts, AI-provider credentials, immutable digest pinning, tags, and verification details.
+
+## GitHub Action
+
+ADR Guard provides a composite GitHub Action that invokes the published GHCR image directly, so consuming repositories do not need to install the .NET SDK. The repository must be checked out first, and the action supports Linux runners with a working Docker daemon, such as `ubuntu-latest`.
+
+> The moving `@v1` consumer reference is not published yet. Treat `uses: rodri-oliveira-dev/adr-guard@v1` examples as forthcoming until the release workflow creates and verifies that tag.
+
+For complete pull-request/main workflows, inputs, annotations, required-check configuration, troubleshooting, and release/Marketplace status, use the [GitHub Action consumer guide](docs/github-action.md).
+
+The default operation validates `docs/adr`:
+
+```yaml
+name: ADR validation
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  adr-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate ADRs
+        uses: rodri-oliveira-dev/adr-guard@vX.Y.Z
+        with:
+          path: docs/adr
+          command: check
+```
+
+Inputs are deliberately small and map directly to supported CLI behavior:
+
+| Input | Default | Allowed values / policy |
+| --- | --- | --- |
+| `path` | `docs/adr` | Repository-relative ADR directory. Absolute paths, `..` traversal, missing directories, and paths resolving outside `GITHUB_WORKSPACE` are rejected. |
+| `command` | `check` | `check` or `index`. |
+| `version` | empty | Optional exact image version in `X.Y.Z` or `vX.Y.Z` form. When omitted, `@vX.Y.Z` selects the exact image tag and `@vX` selects the matching moving major image tag. SHA/branch pins require an explicit exact version. |
+
+Version selection never falls back to `latest`. For `uses: rodri-oliveira-dev/adr-guard@v1.2.3`, the Action invokes `ghcr.io/rodri-oliveira-dev/adr-guard:1.2.3`. For `uses: rodri-oliveira-dev/adr-guard@v1`, it invokes the matching moving major image tag `:1`. Exact Action tags are immutable; major tags move only to newer successful releases in that major line. If the Action is pinned by commit SHA or a branch, specify the image explicitly:
+
+```yaml
+- name: Validate ADRs from a pinned action commit
+  uses: rodri-oliveira-dev/adr-guard@<commit-sha>
+  with:
+    path: architecture/adr
+    command: check
+    version: 1.2.3
+```
+
+See the [GitHub Action release policy](docs/github-action-release.md) for exact versus major tag semantics, idempotency guarantees, release ordering, and the verification procedure.
+
+The `check` command mounts the checked-out workspace read-only, so validation cannot mutate repository files. For `index`, the workspace remains read-only and only the selected ADR directory is over-mounted as writable because the CLI generates or refreshes `README.md` there:
+
+```yaml
+- name: Generate ADR index
+  uses: rodri-oliveira-dev/adr-guard@vX.Y.Z
+  with:
+    path: docs/adr
+    command: index
+
+- name: Fail if the generated index was not committed
+  run: git diff --exit-code -- docs/adr/README.md
+```
+
+All user inputs are passed as discrete process arguments rather than executable shell fragments. Paths are resolved against the checked-out workspace before Docker starts, including symlink resolution, and the CLI exit-code contract remains unchanged: `0` success, `1` validation failure, `2` usage/input error, and `3` operational error.
+
+When a `check` or `index` run returns exit code `1`, the action converts recognized `ADR001`–`ADR009` CLI diagnostics into GitHub **file-level error annotations** for existing ADR files within the validated directory. The CLI does not provide reliable line numbers, so annotations deliberately do not include a line number. Diagnostic paths and messages are validated and escaped before emitting workflow commands; unexpected output or operational failures are not annotated as ADR rules.
+
+The action writes a compact `GITHUB_STEP_SUMMARY` with the outcome, exit code, and (for validation failures with recognized output) total and per-rule diagnostic counts. **At most 50 file annotations** are emitted per run; all diagnostics remain available in the raw CLI log. Raw output is replayed with GitHub workflow-command processing temporarily suspended to prevent untrusted ADR content from injecting annotations or other workflow commands. Reporting errors never replace the original CLI exit code.
+
+The Action itself does not require `GITHUB_TOKEN`, repository write permissions, provider API keys, or network access. It runs containers with a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, and networking disabled. AI-assisted `draft` and provider credentials are intentionally outside the default Action contract. See the [GitHub Action security model](docs/github-action-security.md) for registry access, secret handling, non-root execution, and version/digest pinning guidance.
+
+Windows, macOS, Linux runners without a working Docker daemon, and root execution for writable `index` are not supported.
 
 ## ADR format
 
@@ -379,14 +461,14 @@ After a pull request is merged into `main`, the release workflow waits for the `
 
 1. resolves a stable SemVer version, starting from `VersionPrefix` and incrementing the patch for subsequent releases;
 2. packs `RodriOliveira.AdrGuard` with that version;
-3. authenticates to NuGet.org through Trusted Publishing (OIDC) and publishes the package;
-4. publishes the same package to GitHub Packages;
-5. creates or verifies the corresponding `vMAJOR.MINOR.PATCH` tag;
-6. publishes the multi-platform OCI image to GHCR and Docker Hub with SemVer tags, OCI metadata, SBOM, and provenance attestations;
-7. verifies the published architectures and attestation manifests;
-8. creates the GitHub Release and attaches the `.nupkg`.
+3. publishes the package to NuGet.org through Trusted Publishing (OIDC) and to GitHub Packages;
+4. publishes the multi-platform OCI image to GHCR and Docker Hub with exact/minor/major/`latest` tags, OCI metadata, SBOM, and provenance attestations;
+5. verifies the published architectures, attestations, exact image digest, and moving major image digest;
+6. smoke-tests Action runtime resolution for the exact `vMAJOR.MINOR.PATCH` and moving `vMAJOR` references;
+7. creates or verifies the immutable exact Action tag and advances the moving major Action tag only after all runtime/package publication jobs succeed;
+8. creates the GitHub Release and attaches the `.nupkg` without overwriting an existing immutable asset.
 
-The workflow is idempotent for a commit that already has a release tag.
+A failed container publication cannot expose a new Action tag. Reruns preserve immutable SemVer tags and never move a major compatibility tag backwards. See the [GitHub Action release policy](docs/github-action-release.md) for the full verification and idempotency rules.
 
 ## License
 
