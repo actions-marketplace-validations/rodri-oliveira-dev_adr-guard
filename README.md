@@ -10,6 +10,8 @@
 
 **GitHub Action consumers:** see the [consumer guide](docs/github-action.md), [release policy](docs/github-action-release.md), [security model](docs/github-action-security.md), [external verification evidence](docs/github-action-external-verification.md), and [Marketplace publication checklist](docs/github-marketplace.md). Independent pre-release consumer verification has passed, the `@v1` compatibility tag is published, and the Marketplace listing is still **forthcoming**. Support is available through [SUPPORT.md](SUPPORT.md); security reports follow [SECURITY.md](SECURITY.md).
 
+> **Version availability:** Offline `new` and optional template-based `draft` are introduced in version **1.1.0**; older 1.0.x packages do not include them. Before the 1.1.0 release is published, build `feature/issues-59` to try them; afterward install the versioned package or image. The public GitHub Action `@v1` continues to support only `check`/`index`.
+
 ADR Guard is a lightweight .NET command-line tool for validating and indexing Architecture Decision Records (ADRs).
 
 It is designed for repositories that want ADR conventions to be explicit, reviewable, and enforceable in local development and CI without introducing a heavy runtime dependency.
@@ -24,6 +26,7 @@ It is designed for repositories that want ADR conventions to be explicit, review
 - avoids rewriting an index that is already current;
 - exposes stable validation codes (`ADR001` through `ADR009`);
 - exposes predictable exit codes for CI/CD;
+- creates human-editable `Proposed` ADRs offline using built-in or custom Markdown templates;
 - supports human-reviewed AI-assisted `Proposed` ADR drafting through explicit providers and context;
 - ships as a .NET Tool with no third-party runtime dependencies.
 
@@ -153,6 +156,8 @@ The Action itself does not require `GITHUB_TOKEN`, repository write permissions,
 
 Windows, macOS, Linux runners without a working Docker daemon, and root execution for writable `index` are not supported.
 
+The public `rodri-oliveira-dev/adr-guard@v1` Action offers **only `check` and `index`**. Run `new` or AI `draft` separately via the CLI/.NET Tool or a versioned container, not as Action inputs.
+
 ## ADR format
 
 ADR Guard expects Markdown files named with a four-digit ID followed by a lowercase kebab-case slug:
@@ -191,6 +196,24 @@ Supported statuses:
 - `Superseded`
 
 The required sections are `Context`, `Decision`, and `Consequences`. A `Superseded` ADR must also contain a `Superseded by` section linking to an existing ADR.
+
+## Create Proposed ADRs offline
+
+The new `adr-guard new` command on this development branch creates an editable ADR **without AI, credentials, or network access**. The destination directory must exist. Minimal and `en-US` are the defaults; Extended and Custom are opt-in.
+
+```bash
+mkdir -p docs/adr
+adr-guard new docs/adr --title "Adopt Redis"
+adr-guard new docs/adr --title "Adopt Kafka" --template extended --culture pt-BR
+adr-guard new docs/adr --title "Adopt Cache" --template-file docs/examples/templates/team.en-US.md
+adr-guard new docs/adr --title "Preview only" --template minimal --preview
+adr-guard check docs/adr
+adr-guard index docs/adr
+```
+
+`--dry-run` is an alias for `--preview`; neither writes an ADR, updates the index, or reserves an ID. `new` never updates the index automatically: run `check` and then `index` explicitly. `--template minimal|extended` and `--template-file <path>` are mutually exclusive. `--culture en-US|pt-BR` localizes instructional text, **not** the invariant headings `Status`, `Context`, `Decision`, `Consequences` or initial `Proposed` status. Custom files must be UTF-8 `.md`, at most 65,536 bytes, selected individually and resolved relative to the invocation directory; store templates outside the ADR directory. Creating uses the next ID after the highest existing ID, locks cooperating same-host creators and writes atomically without overwrite; `{{id}}` is regenerated using the final allocated ID. Structural validation is **not architectural approval**; an architect must review and replace the editable notes.
+
+**Validator-compliant samples:** [Minimal EN](docs/examples/generated/minimal/0001-adopt-redis.md), [Extended pt-BR](docs/examples/generated/extended/0001-adotar-redis.md), [Custom EN](docs/examples/generated/custom/0001-adopt-cache.md), [Custom pt-BR](docs/examples/generated/custom-pt-BR/0001-adotar-cache.md). Read the [full offline creation and exit-code guide](docs/creation.md) and [custom placeholder rules](docs/custom-templates.md). Native MADR/alternate-format validation is not supported.
 
 ## Validate ADRs
 
@@ -262,6 +285,10 @@ The normal persistence workflow allocates the next ADR ID deterministically, cre
 
 The production CLI propagates cancellation through the draft workflow. Pressing `Ctrl+C` requests graceful cancellation across context loading, provider HTTP calls, validation boundaries, and persistence.
 
+### Optional templates for AI-assisted drafts
+
+Without `--template` or `--template-file`, `draft` retains its original rendering, supported .NET cultures, provider contract and explicit context selection. With a selected template, only the final rendering changes locally: template source, guidance and path are **never sent to the AI provider**. Use `--template minimal|extended` or `--template-file docs/examples/templates/team.en-US.md` alongside the existing `--provider`, `--model`, `--title` and `--context`. Existing ADRs are shared only with explicit `--include-existing-adrs`; context files only with explicit `--context-file`. Unlike offline `new --preview`, `draft --preview` still calls the provider but skips persistence. See the [AI template/privacy guide](docs/draft-templates.md).
+
 ### Providers, models, and authentication
 
 ADR Guard does not choose a model automatically. Both `--provider` and `--model` are required at runtime.
@@ -289,7 +316,7 @@ adr-guard draft docs/adr --title "Decision" --context "Context" \
 
 Authentication is read from environment variables rather than CLI arguments, which keeps credentials out of command history and ADR content. The CLI reports provider and model selection but does not print authentication values.
 
-For `openai-compatible`, plain HTTP is allowed only when no API key is configured. If `ADR_GUARD_OPENAI_COMPATIBLE_API_KEY` is set, the endpoint must use HTTPS so the Bearer credential and architectural context are not sent over plaintext transport. Official OpenAI requests explicitly set `store: false`.
+For `openai-compatible`, remote endpoints must use HTTPS even when no API key is configured, because the architectural context itself may be sensitive. Plain HTTP is allowed only for loopback endpoints such as `localhost`, `127.0.0.1`, or `::1`, which keeps local Ollama/LM Studio-style workflows available. If `ADR_GUARD_OPENAI_COMPATIBLE_API_KEY` is set, HTTPS is required even for loopback endpoints so the Bearer credential is never sent over plaintext transport. Official OpenAI requests explicitly set `store: false`.
 
 ### Language and inline context
 
@@ -439,7 +466,7 @@ dotnet pack src/AdrGuard/AdrGuard.csproj --configuration Release --no-build --ou
 Install the locally built package:
 
 ```bash
-dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 0.1.0 --add-source ./artifacts/package
+dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 1.1.0 --add-source ./artifacts/package
 ./.tools/adr-guard check docs/adr
 ```
 
@@ -448,6 +475,8 @@ dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 0.1.0 
 ADR Guard validates its own architecture decisions. See [docs/adr](docs/adr/README.md).
 
 The repository CI builds and tests the solution, packages the .NET Tool, installs that package locally, runs the packaged `adr-guard` against `docs/adr`, regenerates the ADR index, and verifies that no documentation drift was introduced. The container path additionally lints the `Dockerfile`, builds and smoke-tests the image, and blocks fixable `HIGH` or `CRITICAL` vulnerabilities detected by Trivy.
+
+For release highlights, see the [v1.1.0 release notes](docs/releases/v1.1.0.md) ([pt-BR](docs/releases/v1.1.0.pt-BR.md)).
 
 ## Additional resources
 

@@ -63,6 +63,31 @@ docker run --rm \
 
 A imagem já executa como usuário não-root por padrão. O `--user` explícito acima serve apenas para alinhar o ownership de volumes graváveis do host quando necessário.
 
+## `new` offline e templates personalizados (disponível a partir da v1.1.0)
+
+O container da `v1.0.0` **não** inclui `new`. Antes da publicação da versão `v1.1.0`, crie uma imagem local a partir de `feature/issues-59`; depois, use uma imagem de release fixada em `:1.1.0` (ou superior):
+
+```bash
+docker build -t adr-guard:templates .
+mkdir -p docs/adr
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" adr-guard:templates \
+  new docs/adr --title "Adotar Redis" --template minimal --culture pt-BR
+
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" adr-guard:templates \
+  new docs/adr --title "Adotar Cache" \
+  --template-file docs/examples/templates/team.pt-BR.md --culture pt-BR
+
+docker run --rm -v "$PWD:/workspace:ro" adr-guard:templates check docs/adr
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" adr-guard:templates index docs/adr
+```
+
+`new` é **offline e não usa secrets**: não forneça `OPENAI_API_KEY` ou outras credenciais de IA. O diretório de destino precisa existir e ser gravável pelo usuário do container; o caminho do template é resolvido a partir de `/workspace`, diretório de trabalho do container, e o arquivo precisa ser legível. Uma montagem somente leitura é suficiente para `new --preview`/`--dry-run`, que imprime o Markdown proposto sem gravar. A criação efetiva com `new` não atualiza o índice automaticamente. Essas opções estão incluídas na **imagem versionada de GHCR/Docker Hub a partir da v1.1.0**. Imagens 1.0.x anteriores não as possuem; confira a versão resolvida pela tag móvel `:1` antes de supor que ela já suporta templates.
+
+Consulte o [guia de criação offline, exemplos válidos e códigos de saída](creation.pt-BR.md), [placeholders personalizados](custom-templates.pt-BR.md) e [draft com IA e privacidade](draft-templates.pt-BR.md). A GitHub Action pública `@v1` aceita **somente `check`/`index`**, embora a CLI/container executados separadamente possam usar `new` e `draft`.
+
 ## Criação assistida por IA
 
 As credenciais dos providers devem ser fornecidas em runtime por variáveis de ambiente. Elas nunca são incorporadas à imagem.

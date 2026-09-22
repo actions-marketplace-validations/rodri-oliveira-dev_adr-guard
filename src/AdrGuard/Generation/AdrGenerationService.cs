@@ -1,17 +1,13 @@
 using AdrGuard.Model;
 using AdrGuard.Parsing;
 using AdrGuard.Validation;
-using System.Globalization;
-using System.Text;
 
 namespace AdrGuard.Generation;
 
 internal sealed class AdrGenerationService
 {
-    private const int MaximumAdrId = 9999;
-
     private readonly IAdrGenerationProvider _provider;
-    private readonly IAdrDraftFilePersistence _persistence;
+    private readonly AdrCreationService _creation;
 
     internal AdrGenerationService(
         IAdrGenerationProvider provider,
@@ -20,10 +16,29 @@ internal sealed class AdrGenerationService
         ArgumentNullException.ThrowIfNull(provider);
 
         _provider = provider;
-        _persistence =
-            persistence
-            ?? new AtomicAdrDraftFilePersistence();
+        _creation = new AdrCreationService(
+            persistence ?? new AtomicAdrDraftFilePersistence());
     }
+
+    internal Task<AdrGenerationOutcome> GenerateAsync(
+        string directoryPath,
+        string title,
+        string context,
+        string cultureName,
+        IReadOnlyList<string> contextFilePaths,
+        bool includeExistingAdrs,
+        bool dryRun,
+        CancellationToken cancellationToken) =>
+        GenerateAsync(
+            directoryPath,
+            title,
+            context,
+            cultureName,
+            contextFilePaths,
+            includeExistingAdrs,
+            dryRun,
+            template: null,
+            cancellationToken);
 
     internal async Task<AdrGenerationOutcome> GenerateAsync(
         string directoryPath,
@@ -33,6 +48,7 @@ internal sealed class AdrGenerationService
         IReadOnlyList<string> contextFilePaths,
         bool includeExistingAdrs,
         bool dryRun,
+        AdrTemplateDefinition? template,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
@@ -77,18 +93,10 @@ internal sealed class AdrGenerationService
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var id = GetNextId(documents);
-        var slug = AdrSlug.Create(title);
-
-        if (string.IsNullOrWhiteSpace(slug))
-        {
-            throw new InvalidOperationException(
-                "Unable to create an ADR filename from the supplied title. "
-                + "The title must contain at least one ASCII letter or digit.");
-        }
-
-        var fileName = $"{id.ToString("D4", CultureInfo.InvariantCulture)}-{slug}.md";
-        var filePath = Path.GetFullPath(Path.Combine(directoryPath, fileName));
+        var filePath = AdrCreationService.AllocateFilePath(
+            directoryPath,
+            title,
+            documents);
 
         if (File.Exists(filePath))
         {
@@ -105,93 +113,77 @@ internal sealed class AdrGenerationService
             .ConfigureAwait(false);
 
         ArgumentNullException.ThrowIfNull(generated);
+        AdrGenerationContextLimits.ValidateGeneratedResult(generated);
         GeneratedAdrStructureGuard.Validate(generated);
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var content = BuildMarkdown(title, generated);
-        var candidate = AdrMarkdownParser.Parse(filePath, content);
+        // The provider receives exactly the existing composed architectural context;
+        // template bodies and localized guidance are rendered locally after its call.
+        // Never call the provider in the shared creation critical section.
+        var substitutions = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["context"] = generated.Context ?? string.Empty,
+            ["decision"] = generated.Decision ?? string.Empty,
+            ["consequences"] = generated.Consequences ?? string.Empty,
+        };
 
-        cancellationToken.ThrowIfCancellationRequested();
+        string RenderForId(int id) => template is null
+            ? AdrMarkdownRenderer.RenderDefaultDraft(title, generated)
+            : AdrMarkdownRenderer.RenderTemplate(
+                new AdrTemplateRenderRequest(title, template, substitutions, id));
 
-        var validation = AdrValidator.Validate(
-            documents
-                .Append(candidate)
-                .ToArray());
+        var previewId = AdrIdAllocator.NextId(documents);
+        var content = RenderForId(previewId);
+        var preview = AdrCreationService.Prepare(
+            directoryPath,
+            title,
+            content,
+            documents,
+            cancellationToken);
 
-        cancellationToken.ThrowIfCancellationRequested();
-
-        if (!validation.IsValid)
+        if (!preview.ValidationResult.IsValid || dryRun)
         {
             return new AdrGenerationOutcome(
-                filePath,
+                preview.FilePath,
                 content,
-                validation,
+                preview.ValidationResult,
                 Written: false);
         }
 
-        if (!dryRun)
+        if (template is null)
         {
-            await _persistence
-                .WriteNewAsync(
-                    filePath,
+            // Preserve the unselected draft's existing rendering and persistence.
+            var defaultPersisted = await _creation.PersistAsync(
+                    directoryPath,
+                    title,
                     content,
+                    filePath,
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            return new AdrGenerationOutcome(
+                defaultPersisted.FilePath,
+                content,
+                defaultPersisted.ValidationResult,
+                Written: defaultPersisted.ValidationResult.IsValid);
         }
+
+        var persisted = await _creation.PersistRenderedAsync(
+                directoryPath,
+                title,
+                RenderForId,
+                filePath,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         return new AdrGenerationOutcome(
-            filePath,
-            content,
-            validation,
-            Written: !dryRun);
+            persisted.FilePath,
+            persisted.Content,
+            persisted.ValidationResult,
+            Written: persisted.ValidationResult.IsValid);
     }
 
-    private static int GetNextId(IReadOnlyList<AdrDocument> documents)
-    {
-        var maximumId = documents
-            .Where(document => document.Id is > 0)
-            .Select(document => document.Id!.Value)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        if (maximumId >= MaximumAdrId)
-        {
-            throw new InvalidOperationException(
-                $"Unable to allocate a new ADR ID because {MaximumAdrId:D4} is the maximum supported ID.");
-        }
-
-        return maximumId + 1;
-    }
-
-    private static string BuildMarkdown(
-        string title,
-        AdrGenerationResult generated)
-    {
-        var builder = new StringBuilder();
-
-        builder
-            .Append("# ")
-            .AppendLine(title.Trim())
-            .AppendLine()
-            .AppendLine("## Status")
-            .AppendLine()
-            .AppendLine("Proposed")
-            .AppendLine()
-            .AppendLine("## Context")
-            .AppendLine()
-            .AppendLine(generated.Context?.Trim() ?? string.Empty)
-            .AppendLine()
-            .AppendLine("## Decision")
-            .AppendLine()
-            .AppendLine(generated.Decision?.Trim() ?? string.Empty)
-            .AppendLine()
-            .AppendLine("## Consequences")
-            .AppendLine()
-            .AppendLine(generated.Consequences?.Trim() ?? string.Empty);
-
-        return builder.ToString();
-    }
 
 
 }
