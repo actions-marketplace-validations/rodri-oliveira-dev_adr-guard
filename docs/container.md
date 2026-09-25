@@ -63,6 +63,31 @@ docker run --rm \
 
 The image itself defaults to a non-root user. The explicit `--user` option above is only for matching ownership on writable host mounts where required.
 
+## Offline `new` and custom templates (available from v1.1.0)
+
+The published `v1.0.0` container does **not** include `new`. Before version `v1.1.0` is available, build an image locally from `feature/issues-59`; afterward use a pinned `:1.1.0` (or newer) release image:
+
+```bash
+docker build -t adr-guard:templates .
+mkdir -p docs/adr
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" adr-guard:templates \
+  new docs/adr --title "Adopt Redis" --template minimal --culture en-US
+
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" adr-guard:templates \
+  new docs/adr --title "Adopt Cache" \
+  --template-file docs/examples/templates/team.en-US.md
+
+docker run --rm -v "$PWD:/workspace:ro" adr-guard:templates check docs/adr
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspace" adr-guard:templates index docs/adr
+```
+
+`new` is **offline and secret-free**: do not provide `OPENAI_API_KEY` or other provider credentials. The directory must already exist and be writable by the container user; the template file resolves relative to the container's `/workspace` working directory and must be readable. Use a read-only mount for `new --preview`/`--dry-run`, which print the proposed Markdown without writing. A real `new` does not update the index automatically. These CLI options are included in the **versioned GHCR/Docker Hub image starting with v1.1.0**. Earlier v1.0.x images do not have them; the moving `:1` tag should not be assumed to be at least v1.1.0 without checking its resolved version.
+
+See [offline creation, validated examples and exit codes](creation.md), [custom placeholders](custom-templates.md) and [template-based AI draft/privacy](draft-templates.md). The public GitHub Action `@v1` supports **only `check`/`index`**, even though the separately invoked CLI/container can run `new` and `draft`.
+
 ## AI-assisted drafting
 
 Provider credentials must be supplied at runtime through environment variables. They are never baked into the image.

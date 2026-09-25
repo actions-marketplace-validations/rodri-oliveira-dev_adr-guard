@@ -10,6 +10,8 @@
 
 **Consumidores da GitHub Action:** consulte o [guia de consumo](docs/github-action.pt-BR.md), a [política de release](docs/github-action-release.pt-BR.md), o [modelo de segurança](docs/github-action-security.pt-BR.md), as [evidências de verificação externa](docs/github-action-external-verification.pt-BR.md) e o [checklist de publicação no Marketplace](docs/github-marketplace.pt-BR.md). A verificação externa pré-release passou, a tag de compatibilidade `@v1` está publicada e a listagem no Marketplace ainda é **futura**. O suporte está em [SUPPORT.md](SUPPORT.md) e relatos de segurança seguem [SECURITY.md](SECURITY.md).
 
+> **Disponibilidade por versão:** `new` offline e `draft` opcional com templates são introduzidos na versão **1.1.0**; pacotes anteriores 1.0.x não oferecem esses recursos. Antes da publicação da 1.1.0, compile `feature/issues-59` para testá-los; após a release, instale o pacote ou imagem versionada. A GitHub Action pública `@v1` continua aceitando somente `check`/`index`.
+
 ADR Guard é uma ferramenta de linha de comando para .NET focada em validar e indexar Architecture Decision Records (ADRs).
 
 A proposta é permitir que convenções de ADR sejam explícitas, revisáveis e verificáveis tanto no desenvolvimento local quanto no CI, sem adicionar dependências pesadas em runtime.
@@ -24,6 +26,7 @@ A proposta é permitir que convenções de ADR sejam explícitas, revisáveis e 
 - evita reescrever um índice que já está atualizado;
 - fornece códigos de validação estáveis (`ADR001` até `ADR009`);
 - fornece exit codes previsíveis para CI/CD;
+- cria ADRs `Proposed` editáveis offline usando templates Markdown internos ou personalizados;
 - oferece criação assistida por IA de ADRs `Proposed`, com revisão humana, providers e contexto explícitos;
 - é distribuído como .NET Tool sem dependências externas em runtime.
 
@@ -153,6 +156,8 @@ A própria Action não precisa de `GITHUB_TOKEN`, permissão de escrita no repos
 
 Windows, macOS, runners Linux sem Docker funcional e execução como root para `index` gravável não são suportados.
 
+A Action pública `rodri-oliveira-dev/adr-guard@v1` oferece **somente `check` e `index`**. Execute `new` ou `draft` com IA separadamente pela CLI/.NET Tool ou container versionado, nunca como inputs da Action.
+
 ## Formato dos ADRs
 
 O ADR Guard espera arquivos Markdown com um ID de quatro dígitos seguido por um slug em lowercase kebab-case:
@@ -191,6 +196,24 @@ Status aceitos:
 - `Superseded`
 
 As seções `Context`, `Decision` e `Consequences` são obrigatórias. Um ADR com status `Superseded` também precisa de uma seção `Superseded by` apontando para um ADR existente.
+
+## Criar ADRs Proposed offline
+
+O comando `adr-guard new` nesta branch cria uma ADR editável **sem IA, credenciais ou acesso à rede**. O diretório de destino precisa existir. Minimal e `en-US` são os padrões; Extended e Custom são opcionais.
+
+```bash
+mkdir -p docs/adr
+adr-guard new docs/adr --title "Adotar Redis" --culture pt-BR
+adr-guard new docs/adr --title "Adotar Mensageria" --template extended --culture pt-BR
+adr-guard new docs/adr --title "Adotar Cache" --template-file docs/examples/templates/team.pt-BR.md --culture pt-BR
+adr-guard new docs/adr --title "Somente prévia" --template minimal --preview
+adr-guard check docs/adr
+adr-guard index docs/adr
+```
+
+`--dry-run` equivale a `--preview`; nenhum dos dois grava ADR, atualiza o índice ou reserva ID. `new` não atualiza o índice automaticamente: execute `check` e `index` explicitamente. `--template minimal|extended` e `--template-file <caminho>` são mutuamente exclusivos. `--culture en-US|pt-BR` traduz instruções editoriais, mas **não** os títulos canônicos `Status`, `Context`, `Decision`, `Consequences` nem o status inicial `Proposed`. O arquivo personalizado deve ser um `.md` UTF-8 de até 65.536 bytes, selecionado individualmente e resolvido a partir do diretório de invocação; mantenha templates fora da pasta de ADRs. O novo ID é calculado após o maior ID existente; criadores cooperantes no mesmo host compartilham o bloqueio e a gravação atômica sem sobrescrita; `{{id}}` recebe o ID alocado definitivo. **Validação estrutural não é aprovação arquitetural:** um responsável deve revisar o conteúdo e substituir as instruções.
+
+**Exemplos válidos:** [Minimal EN](docs/examples/generated/minimal/0001-adopt-redis.md), [Extended pt-BR](docs/examples/generated/extended/0001-adotar-redis.md), [Custom EN](docs/examples/generated/custom/0001-adopt-cache.md), [Custom pt-BR](docs/examples/generated/custom-pt-BR/0001-adotar-cache.md). Consulte o [guia completo de criação offline e códigos de saída](docs/creation.pt-BR.md) e as [regras de placeholders](docs/custom-templates.pt-BR.md). A validação nativa de MADR/formatos alternativos não é suportada.
 
 ## Validar ADRs
 
@@ -262,6 +285,10 @@ O fluxo normal de persistência aloca deterministicamente o próximo ID de ADR, 
 
 A CLI de produção propaga cancelamento por todo o fluxo de draft. Pressionar `Ctrl+C` solicita cancelamento gracioso durante carregamento de contexto, chamadas HTTP ao provider, pontos de validação e persistência.
 
+### Templates opcionais no draft com IA
+
+Sem `--template` ou `--template-file`, o `draft` mantém renderização anterior, culturas .NET, contrato de provedor e seleção explícita do contexto. Com template selecionado, somente a renderização final muda localmente: o conteúdo, a orientação e o caminho do template **nunca são enviados ao provedor de IA**. Use `--template minimal|extended` ou `--template-file docs/examples/templates/team.pt-BR.md` junto com os parâmetros existentes `--provider`, `--model`, `--title` e `--context`. ADRs existentes são compartilhadas apenas com `--include-existing-adrs` explícito; arquivos de contexto, apenas com `--context-file` explícito. Diferentemente do `new --preview` offline, `draft --preview` ainda chama o provedor, mas não grava. Consulte o [guia de templates para IA e privacidade](docs/draft-templates.pt-BR.md).
+
 ### Providers, modelos e autenticação
 
 O ADR Guard não escolhe um modelo automaticamente. `--provider` e `--model` são obrigatórios em runtime.
@@ -289,7 +316,7 @@ adr-guard draft docs/adr --title "Decisão" --context "Contexto" \
 
 A autenticação é lida de variáveis de ambiente, e não de argumentos da CLI, evitando expor credenciais no histórico do comando ou no conteúdo dos ADRs. A CLI informa provider e modelo selecionados, mas não exibe valores de autenticação.
 
-Para `openai-compatible`, HTTP sem TLS é permitido somente quando nenhuma API key está configurada. Se `ADR_GUARD_OPENAI_COMPATIBLE_API_KEY` estiver definida, o endpoint deve usar HTTPS para que a credencial Bearer e o contexto arquitetural não sejam enviados em texto puro. As requisições oficiais da OpenAI definem explicitamente `store: false`.
+Para `openai-compatible`, endpoints remotos devem usar HTTPS mesmo quando nenhuma API key estiver configurada, porque o próprio contexto arquitetural pode ser sensível. HTTP sem TLS é permitido somente para endpoints de loopback, como `localhost`, `127.0.0.1` ou `::1`, preservando fluxos locais com Ollama/LM Studio e similares. Se `ADR_GUARD_OPENAI_COMPATIBLE_API_KEY` estiver definida, HTTPS é obrigatório inclusive em loopback para que a credencial Bearer nunca seja enviada em texto puro. As requisições oficiais da OpenAI definem explicitamente `store: false`.
 
 ### Idioma e contexto inline
 
@@ -439,7 +466,7 @@ dotnet pack src/AdrGuard/AdrGuard.csproj --configuration Release --no-build --ou
 Instalar localmente o pacote gerado:
 
 ```bash
-dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 0.1.0 --add-source ./artifacts/package
+dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 1.1.0 --add-source ./artifacts/package
 ./.tools/adr-guard check docs/adr
 ```
 
@@ -448,6 +475,8 @@ dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 0.1.0 
 O ADR Guard valida os próprios ADRs do projeto. Consulte [docs/adr](docs/adr/README.md).
 
 O CI do repositório compila e testa a solução, empacota a .NET Tool, instala o pacote localmente, executa o `adr-guard` empacotado contra `docs/adr`, regenera o índice e verifica se houve drift na documentação. O caminho de container também valida o `Dockerfile` com Hadolint, faz build e smoke tests da imagem e bloqueia vulnerabilidades corrigíveis `HIGH` ou `CRITICAL` detectadas pelo Trivy.
+
+Para os principais recursos da release, consulte as [notas da v1.1.0](docs/releases/v1.1.0.pt-BR.md) ([EN](docs/releases/v1.1.0.md)).
 
 ## Recursos adicionais
 
