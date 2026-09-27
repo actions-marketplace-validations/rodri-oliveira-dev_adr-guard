@@ -4,6 +4,7 @@ using AdrGuard.Review;
 using AdrGuard.Review.Policy;
 using AdrGuard.Review.Providers;
 using AdrGuard.Review.Reporting;
+using AdrGuard.Review.Security;
 using System.Reflection;
 
 namespace AdrGuard.Cli;
@@ -162,6 +163,13 @@ internal static class CliApplication
           UTF-16, UTF-32, invalid UTF-8 and binary/NUL explicit context are rejected.
           No repository/source-tree discovery occurs by default. --include-existing-adrs explicitly authorizes
           Markdown ADR discovery below the target ADR directory; git diffs and environment variables are never scanned as context.
+
+        Security boundary:
+          ADR/context text and provider output are untrusted data. Embedded instructions, URLs and commands are inert.
+          Review exposes no filesystem/network/tool execution, file-write, status-change or secret-access capability to the model.
+          Known provider/GitHub credential values are redacted from provider context, diagnostics and reports.
+          Provider findings are field-bounded and workflow-command delimiters are neutralized before rendering.
+          See docs/adr-review-security.md for fork/community PR and secret-handling guidance.
 
         Provider-side processing:
           Selected review material is transmitted to the configured external AI provider and can leave
@@ -356,12 +364,12 @@ internal static class CliApplication
             return ExitCodes.UsageError;
         }
 
+        var securityBoundary = new AdrReviewSecurityBoundary(
+            AdrReviewSecurityBoundary.ReadCredentialValues(
+                environmentVariableReader));
+
         try
         {
-            AdrReviewProviderFactory.ValidateSelection(
-                reviewArguments.ProviderName!,
-                reviewArguments.Endpoint);
-
             if (injectedProvider is not null)
             {
                 return ReviewCommand.Run(
@@ -375,11 +383,16 @@ internal static class CliApplication
                     reviewArguments.OverwriteOutput,
                     reviewArguments.PolicyMode,
                     reviewArguments.PolicyFilePath,
+                    securityBoundary,
                     () => injectedProvider!,
                     output,
                     error,
                     cancellationToken);
             }
+
+            AdrReviewProviderFactory.ValidateSelection(
+                reviewArguments.ProviderName!,
+                reviewArguments.Endpoint);
 
             HttpClient? httpClient = null;
 
@@ -396,6 +409,7 @@ internal static class CliApplication
                     reviewArguments.OverwriteOutput,
                     reviewArguments.PolicyMode,
                     reviewArguments.PolicyFilePath,
+                    securityBoundary,
                     () =>
                     {
                         httpClient ??=
@@ -420,13 +434,17 @@ internal static class CliApplication
         }
         catch (ArgumentException exception)
         {
-            error.WriteLine(exception.Message);
+            error.WriteLine(
+                securityBoundary.SanitizeDiagnostic(
+                    exception.Message));
             error.WriteLine("Run 'adr-guard review --help' for usage.");
             return ExitCodes.UsageError;
         }
         catch (InvalidOperationException exception)
         {
-            error.WriteLine(exception.Message);
+            error.WriteLine(
+                securityBoundary.SanitizeDiagnostic(
+                    exception.Message));
             return ExitCodes.OperationalError;
         }
     }
