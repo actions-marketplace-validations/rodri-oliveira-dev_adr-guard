@@ -1,18 +1,28 @@
 # Guia de consumo da GitHub Action
 
-> **Status da publicação:** a Action reutilizável está publicada, e a tag de compatibilidade `v1` está publicada. Os exemplos abaixo com `rodri-oliveira-dev/adr-guard@v1` estão prontos para uso. A listagem no Marketplace é acompanhada separadamente e continua futura até ser publicada e verificada manualmente.
+> **Status da publicação:** a Action reutilizável está publicada, e a tag de compatibilidade `v1` está publicada para o contrato atual de `check`/`index`. O `command: review` opt-in está implementado no PR #85 nesta branch, mas ainda não faz parte do `@v1` remoto atual até a publicação da release pós-merge. A listagem no Marketplace é acompanhada separadamente e continua futura até ser publicada e verificada manualmente.
 
-A composite Action do ADR Guard executa o container publicado do ADR Guard. O consumidor não precisa do .NET SDK, mas precisa de um runner Linux com Docker e deve fazer checkout do repositório antes.
+A composite Action do ADR Guard executa o container publicado do ADR Guard. O consumidor não precisa do .NET SDK. É necessário um runner Linux com Docker e checkout prévio do repositório; o `review` opt-in também exige Python 3 no runner para renderização segura de summary/annotations.
 
 ## Inputs
 
 | Input | Padrão | Valores aceitos |
 | --- | --- | --- |
 | `path` | `docs/adr` | Diretório de ADRs relativo ao repositório, dentro de `GITHUB_WORKSPACE`. Paths absolutos, diretórios inexistentes, traversal com `..` e escapes por symlink são rejeitados. |
-| `command` | `check` | `check` ou `index`. |
+| `command` | `check` | `check`, `index` ou `review` explícito. |
 | `version` | vazio | Versão exata opcional da imagem de runtime no formato `X.Y.Z` ou `vX.Y.Z`. Obrigatória quando o source da Action é fixado por SHA de commit ou branch. |
+| `review-target` | vazio | Arquivo Markdown do ADR relativo ao repositório; obrigatório para `review`. |
+| `provider` | vazio | Provider de revisão; obrigatório para `review`. |
+| `model` | vazio | Identificador do modelo; obrigatório para `review`. |
+| `endpoint` | vazio | Endpoint OpenAI-compatible opcional. |
+| `context-files` | vazio | Contexto de review opcional em arquivos `.md`/`.txt` relativos ao repositório, um por linha. |
+| `include-existing-adrs` | `false` | Opt-in explícito para contexto limitado de ADRs existentes. |
+| `policy` | `advisory` | `advisory` ou `enforce` determinístico. |
+| `policy-file` | vazio | JSON de policy determinística; obrigatório com `policy: enforce`. |
 
-O contrato de exit codes do CLI é preservado: `0` sucesso, `1` falha de validação de ADR, `2` erro de uso/input e `3` erro operacional.
+O contrato de exit codes do CLI é preservado: `0` sucesso, `1` falha de validação de ADR, `2` erro de uso/input, `3` falha operacional/provider e `4` falha de policy determinística de review.
+
+A revisão com provider é opcional e não altera o comportamento padrão do `check`. Consulte [Revisão por IA na GitHub Action](github-action-review.pt-BR.md) para credenciais, eventos confiáveis, summaries, annotations e restrições de fork/`pull_request_target`.
 
 ## Validação de pull request
 
@@ -134,7 +144,7 @@ Para tornar a validação de ADR obrigatória antes do merge, execute o workflow
 
 Se a Action retornar exit code `2`, confira `path`, `command` e a combinação de versão/ref. Os paths precisam permanecer dentro do checkout.
 
-Exit code `3` indica falha operacional, como Docker indisponível ou imagem selecionada inexistente. O ambiente suportado é runner Linux com daemon Docker funcional.
+Exit code `3` indica falha operacional, como Docker indisponível, imagem selecionada inexistente ou ausência de Python 3 no `review` opt-in. O ambiente suportado é runner Linux com daemon Docker funcional; `review` também exige Python 3.
 
 No `index`, o runner precisa ser non-root porque a Action recusa deliberadamente executar o container gravável como UID 0.
 
