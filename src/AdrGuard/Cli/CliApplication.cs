@@ -1,5 +1,8 @@
 using AdrGuard.Generation;
 using AdrGuard.Generation.Providers;
+using AdrGuard.Review;
+using AdrGuard.Review.Providers;
+using AdrGuard.Review.Reporting;
 using System.Reflection;
 
 namespace AdrGuard.Cli;
@@ -18,6 +21,7 @@ internal static class CliApplication
           adr-guard index [directory] [--output <file>]
           adr-guard new [adr-directory] --title <title> [--template minimal|extended] [--template-file <path>] [--culture en-US|pt-BR] [--dry-run|--preview]
           adr-guard draft [directory] --title <title> --context <context> --provider <provider> --model <model> [--culture <name>] [--template minimal|extended | --template-file <path>] [--endpoint <uri>] [--context-file <path>]... [--include-existing-adrs] [--dry-run|--preview]
+          adr-guard review <adr-file> --provider <provider> --model <model> [--endpoint <uri>] [--context-file <path>]... [--include-existing-adrs] [--format text|json] [--output <path> [--overwrite]]
           adr-guard [options]
 
         Commands:
@@ -25,6 +29,7 @@ internal static class CliApplication
           index    Validate ADR files and generate an index. Defaults to README.md.
           new      Create a Proposed ADR from an offline Markdown template.
           draft    Generate a Proposed ADR draft through a configured AI provider.
+          review   Request an advisory, read-only technical review of one existing ADR.
 
         Options:
           -h, --help    Show command-line help.
@@ -101,13 +106,73 @@ internal static class CliApplication
         validates the generated ADR, prints it, and does not write any file.
         """;
 
+    private const string ReviewHelpText = """
+        Usage:
+          adr-guard review <adr-file> --provider <provider> --model <model> [--endpoint <uri>] [--context-file <path>]... [--include-existing-adrs] [--format text|json] [--output <path> [--overwrite]]
+
+        Request an AI-assisted technical review of one existing, structurally valid ADR.
+        The command is advisory and read-only: it does not edit the ADR, change its status,
+        update an index, accept/reject the decision, or alter git state.
+
+        Required provider options:
+          --provider <provider>   openai | anthropic | gemini | openai-compatible
+          --model <model>         Provider model identifier. ADR Guard does not choose a default model.
+
+        Optional options:
+          --endpoint <uri>        Required only for openai-compatible; rejected for official providers.
+          --context-file <path>    Explicit UTF-8 .md or .txt context file; repeatable.
+                                  Each file is limited to 50000 characters and 150000 bytes.
+                                  Aggregate limits are 100000 characters and 300000 bytes.
+          --include-existing-adrs  Opt in to bounded parsed ADR context from the target ADR directory.
+                                  The selected target ADR is deduplicated from this set.
+          --format <format>         Report format: text | json. Defaults to text.
+                                  JSON writes one versioned report object to stdout.
+          --output <path>          Explicitly persist the rendered report. Text output requires .md/.txt;
+                                  JSON output requires .json. Parent directory must already exist.
+          --overwrite              Allow --output to replace an existing regular file atomically.
+                                  Rejected without --output; never permits replacing the ADR or README.md index.
+
+        Reporting:
+          Text output is Markdown-compatible and includes evidence, unknowns, follow-up priority and
+          the human-review caveat. JSON uses schemaVersion 1.0 with stable camelCase field names.
+          In --format json mode, pre-provider source disclosure is written to stderr so stdout stays valid JSON.
+          Report files are UTF-8 without BOM and are written only when --output is explicitly supplied.
+          Provider token usage/charges may apply; ADR Guard does not fabricate or estimate precise costs.
+
+        Privacy and limits:
+          Review sends only the selected ADR by default.
+          Context files are never discovered automatically and must be explicitly supplied.
+          Existing ADRs are included only with --include-existing-adrs and are bounded to 12000 characters.
+          The final composed review context is limited to 120000 characters.
+          Every transmitted source is disclosed locally before provider invocation.
+          Source IDs plus filenames are used in provider context; absolute local paths are not included.
+          UTF-16, UTF-32, invalid UTF-8 and binary/NUL explicit context are rejected.
+          No repository/source-tree discovery occurs by default. --include-existing-adrs explicitly authorizes
+          Markdown ADR discovery below the target ADR directory; git diffs and environment variables are never scanned as context.
+
+        Provider-side processing:
+          Selected review material is transmitted to the configured external AI provider and can leave
+          the local machine/process. Provider retention, logging, residency and processing terms apply;
+          review the selected provider's privacy/data-processing policy before sending sensitive material.
+
+        Authentication is read from the same provider environment variables used by 'draft'.
+        Ctrl+C cancels provider execution.
+
+        Exit codes:
+          0  Review completed
+          1  Selected ADR failed structural validation
+          2  Invalid review command/provider usage
+          3  Operational/provider/cancellation failure
+        """;
+
     internal static int Run(
         IReadOnlyList<string> args,
         TextWriter output,
         TextWriter error,
         IAdrGenerationProvider? generationProvider = null,
         Func<HttpClient>? httpClientFactory = null,
-        Func<string, string?>? environmentVariableReader = null) =>
+        Func<string, string?>? environmentVariableReader = null,
+        IAdrReviewProvider? reviewProvider = null) =>
         RunCore(
             args,
             output,
@@ -115,6 +180,7 @@ internal static class CliApplication
             generationProvider,
             httpClientFactory,
             environmentVariableReader,
+            reviewProvider,
             default);
 
     internal static int Run(
@@ -124,7 +190,8 @@ internal static class CliApplication
         CancellationToken cancellationToken,
         IAdrGenerationProvider? generationProvider = null,
         Func<HttpClient>? httpClientFactory = null,
-        Func<string, string?>? environmentVariableReader = null) =>
+        Func<string, string?>? environmentVariableReader = null,
+        IAdrReviewProvider? reviewProvider = null) =>
         RunCore(
             args,
             output,
@@ -132,6 +199,7 @@ internal static class CliApplication
             generationProvider,
             httpClientFactory,
             environmentVariableReader,
+            reviewProvider,
             cancellationToken);
 
     private static int RunCore(
@@ -141,6 +209,7 @@ internal static class CliApplication
         IAdrGenerationProvider? generationProvider,
         Func<HttpClient>? httpClientFactory,
         Func<string, string?>? environmentVariableReader,
+        IAdrReviewProvider? reviewProvider,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -169,6 +238,14 @@ internal static class CliApplication
                 output,
                 error,
                 generationProvider,
+                httpClientFactory,
+                environmentVariableReader,
+                cancellationToken),
+            "review" => RunReview(
+                args,
+                output,
+                error,
+                reviewProvider,
                 httpClientFactory,
                 environmentVariableReader,
                 cancellationToken),
@@ -226,6 +303,91 @@ internal static class CliApplication
             outputPath,
             output,
             error);
+    }
+
+    private static int RunReview(
+        IReadOnlyList<string> args,
+        TextWriter output,
+        TextWriter error,
+        IAdrReviewProvider? injectedProvider,
+        Func<HttpClient>? httpClientFactory,
+        Func<string, string?>? environmentVariableReader,
+        CancellationToken cancellationToken)
+    {
+        if (args.Count == 2 && IsHelpOption(args[1]))
+        {
+            output.WriteLine(ReviewHelpText);
+            return ExitCodes.Success;
+        }
+
+        if (!TryParseReviewArguments(args, out var reviewArguments))
+        {
+            return WriteCommandUsageError("review", error);
+        }
+
+        if (string.IsNullOrWhiteSpace(reviewArguments.ProviderName)
+            || string.IsNullOrWhiteSpace(reviewArguments.Model))
+        {
+            error.WriteLine("'review' requires both --provider and --model.");
+            error.WriteLine("Run 'adr-guard review --help' for usage.");
+            return ExitCodes.UsageError;
+        }
+
+        try
+        {
+            if (injectedProvider is not null)
+            {
+                return ReviewCommand.Run(
+                    reviewArguments.TargetPath,
+                    reviewArguments.ContextFilePaths,
+                    reviewArguments.IncludeExistingAdrs,
+                    reviewArguments.ProviderName!,
+                    reviewArguments.Model!,
+                    reviewArguments.Format,
+                    reviewArguments.OutputPath,
+                    reviewArguments.OverwriteOutput,
+                    injectedProvider,
+                    output,
+                    error,
+                    cancellationToken);
+            }
+
+            using var httpClient =
+                httpClientFactory?.Invoke()
+                ?? new HttpClient();
+
+            var provider = AdrReviewProviderFactory.Create(
+                reviewArguments.ProviderName,
+                reviewArguments.Model,
+                reviewArguments.Endpoint,
+                httpClient,
+                environmentVariableReader);
+
+            return ReviewCommand.Run(
+                reviewArguments.TargetPath,
+                reviewArguments.ContextFilePaths,
+                reviewArguments.IncludeExistingAdrs,
+                reviewArguments.ProviderName!,
+                reviewArguments.Model!,
+                reviewArguments.Format,
+                reviewArguments.OutputPath,
+                reviewArguments.OverwriteOutput,
+                provider,
+                output,
+                error,
+                cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            error.WriteLine(exception.Message);
+            error.WriteLine("Run 'adr-guard review --help' for usage.");
+            return ExitCodes.UsageError;
+        }
+        catch (InvalidOperationException exception)
+        {
+            error.WriteLine(exception.Message);
+            return ExitCodes.OperationalError;
+        }
     }
 
     private static int RunDraft(
@@ -455,6 +617,176 @@ internal static class CliApplication
         }
 
         return true;
+    }
+
+    private static bool TryParseReviewArguments(
+        IReadOnlyList<string> args,
+        out ReviewArguments reviewArguments)
+    {
+        string? targetPath = null;
+        string? providerName = null;
+        string? model = null;
+        string? endpoint = null;
+        string? outputPath = null;
+        var contextFilePaths = new List<string>();
+        var includeExistingAdrs = false;
+        var format = AdrReviewOutputFormat.Text;
+        var formatAssigned = false;
+        var overwriteOutput = false;
+
+        for (var index = 1; index < args.Count; index++)
+        {
+            var argument = args[index];
+
+            if (argument == "--include-existing-adrs")
+            {
+                if (includeExistingAdrs)
+                {
+                    reviewArguments = ReviewArguments.Empty;
+                    return false;
+                }
+
+                includeExistingAdrs = true;
+                continue;
+            }
+
+            if (argument == "--overwrite")
+            {
+                if (overwriteOutput)
+                {
+                    reviewArguments = ReviewArguments.Empty;
+                    return false;
+                }
+
+                overwriteOutput = true;
+                continue;
+            }
+
+            if (argument is
+                "--provider"
+                or "--model"
+                or "--endpoint"
+                or "--context-file"
+                or "--format"
+                or "--output")
+            {
+                if (index + 1 >= args.Count)
+                {
+                    reviewArguments = ReviewArguments.Empty;
+                    return false;
+                }
+
+                var value = args[++index];
+
+                if (string.IsNullOrWhiteSpace(value)
+                    || value.StartsWith('-'))
+                {
+                    reviewArguments = ReviewArguments.Empty;
+                    return false;
+                }
+
+                switch (argument)
+                {
+                    case "--provider":
+                        if (providerName is not null)
+                        {
+                            reviewArguments = ReviewArguments.Empty;
+                            return false;
+                        }
+
+                        providerName = value;
+                        break;
+
+                    case "--model":
+                        if (model is not null)
+                        {
+                            reviewArguments = ReviewArguments.Empty;
+                            return false;
+                        }
+
+                        model = value;
+                        break;
+
+                    case "--endpoint":
+                        if (endpoint is not null)
+                        {
+                            reviewArguments = ReviewArguments.Empty;
+                            return false;
+                        }
+
+                        endpoint = value;
+                        break;
+
+                    case "--context-file":
+                        contextFilePaths.Add(value);
+                        break;
+
+                    case "--format":
+                        if (formatAssigned)
+                        {
+                            reviewArguments = ReviewArguments.Empty;
+                            return false;
+                        }
+
+                        format = value switch
+                        {
+                            "text" => AdrReviewOutputFormat.Text,
+                            "json" => AdrReviewOutputFormat.Json,
+                            _ => (AdrReviewOutputFormat)(-1),
+                        };
+
+                        if (!Enum.IsDefined(format))
+                        {
+                            reviewArguments = ReviewArguments.Empty;
+                            return false;
+                        }
+
+                        formatAssigned = true;
+                        break;
+
+                    case "--output":
+                        if (outputPath is not null)
+                        {
+                            reviewArguments = ReviewArguments.Empty;
+                            return false;
+                        }
+
+                        outputPath = value;
+                        break;
+                }
+
+                continue;
+            }
+
+            if (argument.StartsWith('-')
+                || targetPath is not null)
+            {
+                reviewArguments = ReviewArguments.Empty;
+                return false;
+            }
+
+            targetPath = argument;
+        }
+
+        if (overwriteOutput
+            && outputPath is null)
+        {
+            reviewArguments = ReviewArguments.Empty;
+            return false;
+        }
+
+        reviewArguments = new ReviewArguments(
+            targetPath ?? string.Empty,
+            providerName,
+            model,
+            endpoint,
+            contextFilePaths,
+            includeExistingAdrs,
+            format,
+            outputPath,
+            overwriteOutput);
+
+        return !string.IsNullOrWhiteSpace(targetPath);
     }
 
     private static bool TryParseDraftArguments(
@@ -713,6 +1045,30 @@ internal static class CliApplication
                    ?.InformationalVersion
                ?? assembly.GetName().Version?.ToString()
                ?? "unknown";
+    }
+
+    private sealed record ReviewArguments(
+        string TargetPath,
+        string? ProviderName,
+        string? Model,
+        string? Endpoint,
+        IReadOnlyList<string> ContextFilePaths,
+        bool IncludeExistingAdrs,
+        AdrReviewOutputFormat Format,
+        string? OutputPath,
+        bool OverwriteOutput)
+    {
+        internal static ReviewArguments Empty { get; } =
+            new(
+                string.Empty,
+                null,
+                null,
+                null,
+                [],
+                false,
+                AdrReviewOutputFormat.Text,
+                null,
+                false);
     }
 
     private sealed record DraftArguments(
