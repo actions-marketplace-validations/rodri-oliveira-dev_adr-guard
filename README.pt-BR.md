@@ -8,9 +8,9 @@
 
 [English](README.md)
 
-**Consumidores da GitHub Action:** consulte o [guia de consumo](docs/github-action.pt-BR.md), o [guia de review por IA](docs/github-action-review.pt-BR.md), a [política de release](docs/github-action-release.pt-BR.md), o [modelo de segurança](docs/github-action-security.pt-BR.md), as [evidências de verificação externa](docs/github-action-external-verification.pt-BR.md) e o [checklist de publicação no Marketplace](docs/github-marketplace.pt-BR.md). A verificação externa pré-release passou, a tag de compatibilidade `@v1` está publicada e a listagem no Marketplace ainda é **futura**. O suporte está em [SUPPORT.md](SUPPORT.md) e relatos de segurança seguem [SECURITY.md](SECURITY.md).
+**Consumidores da GitHub Action:** consulte o [guia de consumo](docs/github-action.pt-BR.md), o [guia de review por IA](docs/github-action-review.pt-BR.md), a [política de release](docs/github-action-release.pt-BR.md), o [modelo de segurança](docs/github-action-security.pt-BR.md), a [auditoria da release pública](docs/public-release-audit.pt-BR.md), as [evidências de verificação externa](docs/github-action-external-verification.pt-BR.md) e o [checklist de publicação no Marketplace](docs/github-marketplace.pt-BR.md). A tag móvel `@v1` está publicada e é exercitada pelo CI no contrato público de `check`/`index`; o `review` opt-in está publicado na linha `v1` desde a `v1.1.6`. Ainda não foi verificada uma listagem pública no Marketplace; a publicação continua sendo um gate manual do proprietário. O suporte está em [SUPPORT.md](SUPPORT.md) e relatos de segurança seguem [SECURITY.md](SECURITY.md).
 
-> **Disponibilidade por versão:** `new` offline e `draft` com templates estão publicados desde a **v1.1.0**. O CLI `review` está publicado desde a **v1.1.2**, a policy determinística de review desde a **v1.1.3** e o hardening de segurança/regressão desde a **v1.1.4**; o CLI/pacote/imagem atual **v1.1.6** inclui tudo isso. A GitHub Action `@v1` publicada também inclui `command: review` opt-in desde a **v1.1.6**. `new` e `draft` assistido por IA continuam sendo fluxos de CLI/.NET Tool ou container direto. A listagem no Marketplace continua futura.
+> **Disponibilidade por versão:** `new` offline e `draft` com templates estão publicados desde a **v1.1.0**. O CLI `review` está publicado desde a **v1.1.2**, a policy determinística de review desde a **v1.1.3**, o hardening de segurança/regressão desde a **v1.1.4** e o `command: review` opt-in da GitHub Action desde a **v1.1.6**. Use o badge do NuGet ou [GitHub Releases](https://github.com/rodri-oliveira-dev/adr-guard/releases) como fonte de verdade para o patch exato mais recente; a documentação evita fixar um patch "atual" que muda a cada release.
 
 ADR Guard é uma ferramenta de linha de comando para .NET focada em validar e indexar Architecture Decision Records (ADRs).
 
@@ -118,7 +118,7 @@ As entradas são pequenas e correspondem diretamente ao comportamento suportado 
 | Entrada | Padrão | Valores permitidos / política |
 | --- | --- | --- |
 | `path` | `docs/adr` | Diretório de ADRs relativo ao repositório. Caminhos absolutos, travessia com `..`, diretórios inexistentes e caminhos que resolvam para fora de `GITHUB_WORKSPACE` são rejeitados. |
-| `command` | `check` | `check`, `index` ou `review` opt-in explícito. O `@v1` publicado inclui os três comandos. |
+| `command` | `check` | `check`, `index` ou `review` explícito. `review` está disponível na linha `v1` publicada desde a `v1.1.6`; `new` e `draft` não são comandos da Action. |
 | `version` | vazio | Versão exata opcional da imagem, no formato `X.Y.Z` ou `vX.Y.Z`. Quando omitida, `@vX.Y.Z` seleciona a imagem exata e `@vX` seleciona a tag major móvel correspondente. Pins por SHA/branch exigem versão exata explícita. |
 
 A seleção de versão nunca faz fallback para `latest`. Com `uses: rodri-oliveira-dev/adr-guard@v1.2.3`, a Action executa `ghcr.io/rodri-oliveira-dev/adr-guard:1.2.3`. Com `uses: rodri-oliveira-dev/adr-guard@v1`, ela usa a tag major móvel correspondente da imagem, `:1`. Tags exatas da Action são imutáveis; tags major avançam apenas para releases bem-sucedidas mais novas daquela major. Se a Action estiver fixada por SHA de commit ou por uma branch, informe a versão da imagem explicitamente:
@@ -157,7 +157,7 @@ O caminho padrão `check`/`index` da Action não precisa de credenciais de provi
 
 Windows, macOS, runners Linux sem Docker funcional e execução como root para `index` gravável não são suportados.
 
-A Action `rodri-oliveira-dev/adr-guard@v1` publicada oferece `check`, `index` e `review` opt-in. `new` e `draft` com IA continuam sendo fluxos de CLI/.NET Tool ou container direto, não comandos da Action.
+A Action publicada `rodri-oliveira-dev/adr-guard@v1` suporta `check`, `index` e `review` opt-in. `new` e `draft` com IA continuam sendo fluxos de CLI/.NET Tool ou container direto, não comandos da Action.
 
 ## Formato dos ADRs
 
@@ -502,7 +502,7 @@ Gerar o pacote da ferramenta:
 dotnet pack src/AdrGuard/AdrGuard.csproj --configuration Release --no-build --output artifacts/package
 ```
 
-Instalar localmente o pacote gerado:
+Instale localmente o pacote baseline gerado (o `VersionPrefix` do repositório é a base da série de releases, não o patch público mais recente):
 
 ```bash
 dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version 1.1.0 --add-source ./artifacts/package

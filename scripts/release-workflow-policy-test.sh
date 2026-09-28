@@ -5,8 +5,58 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="${ROOT_DIR}/.github/workflows/release.yml"
 PROJECT="${ROOT_DIR}/src/AdrGuard/AdrGuard.csproj"
 
+grep -Fq '  workflow_dispatch:' "${WORKFLOW}" || {
+  echo "Release workflow must be started explicitly with workflow_dispatch." >&2
+  exit 1
+}
+
+if grep -Fq 'workflow_run:' "${WORKFLOW}" || grep -Fq 'github.event.workflow_run' "${WORKFLOW}"; then
+  echo "Release workflow must not publish automatically after CI." >&2
+  exit 1
+fi
+
+grep -Fq "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'" "${WORKFLOW}" || {
+  echo "Manual release must be restricted to an explicit dispatch of the main branch." >&2
+  exit 1
+}
+
+grep -Fq 'ref: ${{ github.sha }}' "${WORKFLOW}" || {
+  echo "Manual release must checkout the commit selected by workflow_dispatch." >&2
+  exit 1
+}
+
+grep -Fq 'VALIDATED_SHA: ${{ github.sha }}' "${WORKFLOW}" || {
+  echo "Manual release must bind versioning and artifacts to the dispatched commit." >&2
+  exit 1
+}
+
+grep -Fq 'actions: read' "${WORKFLOW}" || {
+  echo "Manual release must be able to verify CI status for the dispatched commit." >&2
+  exit 1
+}
+
+grep -Fq 'actions/workflows/ci.yml/runs?head_sha=${VALIDATED_SHA}&event=push&status=completed' "${WORKFLOW}" || {
+  echo "Manual release must query completed CI push runs for the exact dispatched commit." >&2
+  exit 1
+}
+
+grep -Fq 'select(.conclusion == "success")' "${WORKFLOW}" || {
+  echo "Manual release must require a successful CI run before publication." >&2
+  exit 1
+}
+
 grep -Fq '<VersionPrefix>1.1.0</VersionPrefix>' "${PROJECT}" || {
   echo "The coordinated template release must start at 1.1.0 while retaining the existing @v1 compatibility line." >&2
+  exit 1
+}
+
+grep -Fq 'AI-assisted drafting, and evidence-oriented advisory technical review' "${PROJECT}" || {
+  echo "NuGet metadata must describe the published ADR review capability." >&2
+  exit 1
+}
+
+grep -Fq 'org.opencontainers.image.description=A lightweight .NET CLI for validating, creating, indexing, drafting, and reviewing Architecture Decision Records (ADRs).' "${WORKFLOW}" || {
+  echo "OCI metadata must describe the published ADR review capability." >&2
   exit 1
 }
 

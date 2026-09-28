@@ -13,10 +13,10 @@ CLI e GitHub Action têm históricos de release separados.
 | `adr-guard review` base, oito dimensões, contexto limitado e relatórios versionados | `v1.1.2` | Publicado |
 | Policy v1 determinística com advisory/enforce | `v1.1.3` | Publicado |
 | Hardening dos limites de confiança do review e matriz determinística com mock provider | `v1.1.4` | Publicado |
-| Pacote/imagem do CLI publicados atualmente | `v1.1.6` | Inclui as capacidades acima |
-| `command: review` na Action reutilizável | `v1.1.6` | Publicado na Action móvel `@v1` como comando opt-in explícito |
+| `command: review` na Action reutilizável | `v1.1.6` | Publicado na linha móvel de compatibilidade `@v1` |
+| Patch exato mais recente de CLI/pacote/imagem | Consulte GitHub Releases / NuGet | Não é fixado na documentação porque cada release bem-sucedida pode avançar o patch |
 
-A Action `@v1` publicada suporta `check`, `index` e `review` opt-in. A listagem no Marketplace continua acompanhada separadamente; esta documentação não afirma que ela já está disponível.
+A Action `@v1` publicada suporta `check`, `index` e `review` opt-in desde a `v1.1.6`. A listagem no Marketplace é acompanhada separadamente e não é apresentada como disponível até que uma URL pública canônica seja verificada.
 
 ## Uso mínimo do CLI
 
@@ -238,7 +238,7 @@ Outcome: needs-context
 
 ## GitHub Action e governança de CI
 
-A integração da Action implementada no PR #85 mantém `check` como padrão e torna `review` explícito.
+A integração publicada da Action mantém `check` como padrão e torna `review` explícito; `review` está disponível na linha `v1` desde a `v1.1.6`.
 
 Um workflow confiável usa apenas:
 
@@ -247,7 +247,7 @@ permissions:
   contents: read
 ```
 
-e poderá optar pelo review após a publicação da release correspondente da Action:
+e pode optar pelo review usando a Action publicada:
 
 ```yaml
 - name: Revisar ADR selecionado

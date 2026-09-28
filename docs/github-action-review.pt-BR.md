@@ -2,7 +2,7 @@
 
 A revisão assistida por IA de ADRs é uma extensão explicitamente opt-in da Action reutilizável do ADR Guard. O padrão continua sendo o `check` determinístico; habilitar `review` não altera workflows de validação existentes.
 
-> **Disponibilidade:** `command: review` está publicado em `rodri-oliveira-dev/adr-guard@v1` desde a **v1.1.6**. Os exemplos com `@v1` abaixo são exemplos atuais de consumo. O `review` continua sendo opt-in explícito e não altera o caminho determinístico padrão de `check`.
+> **Disponibilidade:** `command: review` está publicado na linha móvel `rodri-oliveira-dev/adr-guard@v1` desde a `v1.1.6`. Os exemplos abaixo são válidos para a Action publicada. O patch exato mais recente não é fixado intencionalmente; use GitHub Releases ou o badge do NuGet como fonte de verdade móvel.
 
 ## Limite de confiança
 

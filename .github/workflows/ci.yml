@@ -156,6 +156,29 @@ jobs:
       - name: Verify 1.1.0 release version resolution
         run: bash scripts/release-version-policy-test.sh
 
+  public-distribution-audit:
+    name: Public distribution audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Verify latest public NuGet, Action refs, GHCR, and Docker Hub artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/public-distribution-smoke-test.sh
+
   github-action-contract:
     name: GitHub Action contract
     runs-on: ubuntu-latest
@@ -163,7 +186,6 @@ jobs:
     permissions:
       contents: read
     env:
-      ADR_GUARD_ACTION_IMAGE_VERSION: "0.1.12"
       ACTION_FIXTURE_ROOT: .tmp/adr-action-contract
 
     steps:
@@ -171,6 +193,20 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Resolve latest published Action runtime version
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          latest_tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name')"
+          if [[ ! "${latest_tag}" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Latest GitHub Release is not a stable SemVer tag: ${latest_tag:-<empty>}."
+            exit 1
+          fi
+          echo "ADR_GUARD_ACTION_IMAGE_VERSION=${BASH_REMATCH[1]}" >> "${GITHUB_ENV}"
+          echo "Using latest published runtime image version ${BASH_REMATCH[1]} for Action contract tests."
 
       - name: Verify anonymous GHCR pull and published image security
         run: bash scripts/github-action-security-test.sh "${ADR_GUARD_ACTION_IMAGE_VERSION}"
@@ -255,7 +291,8 @@ jobs:
           test "${generated_indexes[0]}" = "${ACTION_FIXTURE_ROOT}/index ADRs/README.md"
 
       # Exercise the actual published moving @v1 entrypoint (not just ./ with
-      # a pinned published image). The public Action must expose check/index only.
+      # the latest public runtime). check/index/review compatibility stays
+      # stable; new remains intentionally outside the Action command contract.
       - name: Prepare isolated published @v1 consumer fixtures
         run: |
           mkdir -p "${ACTION_FIXTURE_ROOT}/published-v1 ADRs"
@@ -288,6 +325,171 @@ jobs:
           test -s "${ACTION_FIXTURE_ROOT}/published-v1 ADRs/README.md"
           test "${NEW_OUTCOME}" = failure
           test "$(find "${ACTION_FIXTURE_ROOT}/published-v1 ADRs" -maxdepth 1 -name '[0-9]*.md' | wc -l)" -eq 1
+
+      - name: Prepare deterministic published @v1 review provider mock
+        run: |
+          fake_bin="${RUNNER_TEMP}/published-v1-review-bin"
+          mkdir -p "${fake_bin}"
+          cat >"${fake_bin}/docker" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          case "${1:-}" in
+            info|pull)
+              exit 0
+              ;;
+            run)
+              printf '%s\n' "$@" >"${PUBLISHED_V1_DOCKER_CAPTURE:?}"
+              cat <<'JSON'
+          {
+            "schemaVersion": "1.0",
+            "target": {
+              "sourceId": "target",
+              "path": "0001-use-postgresql.md"
+            },
+            "inputScope": {
+              "explicitContext": [],
+              "existingAdrs": []
+            },
+            "outcome": "no-follow-up-findings",
+            "findings": []
+          }
+          JSON
+              exit 0
+              ;;
+            *)
+              echo "Unexpected docker invocation: $*" >&2
+              exit 99
+              ;;
+          esac
+          EOF
+          chmod +x "${fake_bin}/docker"
+          echo "${fake_bin}" >> "${GITHUB_PATH}"
+
+      - name: Published @v1 consumer review remains compatible
+        uses: rodri-oliveira-dev/adr-guard@v1
+        env:
+          PUBLISHED_V1_DOCKER_CAPTURE: ${{ runner.temp }}/published-v1-review-docker-args.txt
+        with:
+          command: review
+          review-target: .tmp/adr-action-contract/published-v1 ADRs/0001-use-postgresql.md
+          provider: openai
+          model: mock-model
+
+      - name: Assert published @v1 review used the deterministic provider path
+        env:
+          PUBLISHED_V1_DOCKER_CAPTURE: ${{ runner.temp }}/published-v1-review-docker-args.txt
+        run: |
+          grep -Fxq "review" "${PUBLISHED_V1_DOCKER_CAPTURE}"
+          grep -Fxq -- "--provider" "${PUBLISHED_V1_DOCKER_CAPTURE}"
+          grep -Fxq "openai" "${PUBLISHED_V1_DOCKER_CAPTURE}"
+          rm -f "${RUNNER_TEMP}/published-v1-review-bin/docker"
+
+      - name: Smoke test review in the published @v1 runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mock_server="${RUNNER_TEMP}/published-v1-review-provider.py"
+          mock_port_file="${RUNNER_TEMP}/published-v1-review-provider.port"
+          review_output="${RUNNER_TEMP}/published-v1-review-output.json"
+
+          cat >"${mock_server}" <<'PY'
+          import http.server
+          import json
+          import os
+          import socketserver
+
+          dimensions = [
+              "clarity-and-rationale",
+              "considered-alternatives",
+              "nonfunctional-requirements",
+              "risks-and-consequences",
+              "architectural-consistency",
+              "security-and-compliance",
+              "implementation-and-operational-feasibility",
+              "measurable-verification-criteria",
+          ]
+
+          provider_review = {
+              "findings": [
+                  {
+                      "dimension": dimension,
+                      "classification": "observed-evidence",
+                      "source": "0001-use-postgresql.md",
+                      "excerpt": "Decision.",
+                      "explanation": "The selected ADR contains evidence for this dimension.",
+                      "guidance": "Human reviewer should verify this dimension.",
+                  }
+                  for dimension in dimensions
+              ]
+          }
+
+          response = {
+              "choices": [
+                  {
+                      "message": {
+                          "content": json.dumps(provider_review),
+                      }
+                  }
+              ]
+          }
+
+          class Handler(http.server.BaseHTTPRequestHandler):
+              def do_POST(self):
+                  if self.path != "/v1/chat/completions":
+                      self.send_error(404)
+                      return
+
+                  length = int(self.headers.get("Content-Length", "0"))
+                  self.rfile.read(length)
+                  body = json.dumps(response).encode("utf-8")
+
+                  self.send_response(200)
+                  self.send_header("Content-Type", "application/json")
+                  self.send_header("Content-Length", str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def log_message(self, format, *args):
+                  return
+
+          with socketserver.TCPServer(("127.0.0.1", 0), Handler) as server:
+              with open(os.environ["MOCK_PORT_FILE"], "w", encoding="utf-8") as port_file:
+                  port_file.write(str(server.server_address[1]))
+              server.serve_forever()
+          PY
+
+          rm -f "${mock_port_file}"
+          MOCK_PORT_FILE="${mock_port_file}" python3 "${mock_server}" &
+          mock_pid=$!
+          trap 'kill "${mock_pid}" 2>/dev/null || true' EXIT
+
+          for _ in {1..50}; do
+            [[ -s "${mock_port_file}" ]] && break
+            sleep 0.1
+          done
+          test -s "${mock_port_file}"
+          mock_port="$(cat "${mock_port_file}")"
+
+          major_version="${ADR_GUARD_ACTION_IMAGE_VERSION%%.*}"
+          image="ghcr.io/rodri-oliveira-dev/adr-guard:${major_version}"
+          docker pull "${image}" >/dev/null
+
+          docker run --rm --read-only --network host \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace,readonly" \
+            --workdir /workspace \
+            "${image}" \
+            review "/workspace/${ACTION_FIXTURE_ROOT}/published-v1 ADRs/0001-use-postgresql.md" \
+            --provider openai-compatible \
+            --model mock-model \
+            --endpoint "http://127.0.0.1:${mock_port}/v1" \
+            --format json >"${review_output}"
+
+          jq -e '.schemaVersion == "1.0"' "${review_output}" >/dev/null
+          jq -e '.outcome == "no-follow-up-findings"' "${review_output}" >/dev/null
+          jq -e '.dimensions | length == 8' "${review_output}" >/dev/null
+          jq -e '.findings == []' "${review_output}" >/dev/null
 
       - name: Compare Action with the published CLI diagnostic matrix
         run: >-
