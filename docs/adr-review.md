@@ -13,10 +13,10 @@ The CLI and the GitHub Action have separate release histories.
 | Base `adr-guard review`, eight dimensions, bounded context, versioned reports | `v1.1.2` | Published |
 | Deterministic advisory/enforce policy v1 | `v1.1.3` | Published |
 | Review trust-boundary hardening and deterministic mock-provider regression matrix | `v1.1.4` | Published |
-| Current published CLI package/image | `v1.1.6` | Includes the capabilities above |
-| Reusable Action `command: review` | `v1.1.6` | Published in the moving `@v1` Action as an explicit opt-in command |
+| Reusable Action `command: review` | `v1.1.6` | Published on the moving `@v1` compatibility line |
+| Latest exact CLI/package/image patch | See GitHub Releases / NuGet | Intentionally not hard-coded because every successful release can advance the patch |
 
-The published `@v1` Action supports `check`, `index`, and opt-in `review`. The Marketplace listing is still tracked separately; this documentation does not claim that it is live.
+The published `@v1` Action supports `check`, `index`, and opt-in `review` from `v1.1.6`. The Marketplace listing is tracked separately and is not claimed as live until a canonical public listing URL is verified.
 
 ## Minimal CLI usage
 
@@ -238,7 +238,7 @@ Outcome: needs-context
 
 ## GitHub Action and CI governance
 
-The Action integration implemented in PR #85 keeps `check` as the default and makes `review` explicit.
+The published Action integration keeps `check` as the default and makes `review` explicit; `review` is available on the `v1` line since `v1.1.6`.
 
 A trusted workflow uses only:
 
@@ -247,7 +247,7 @@ permissions:
   contents: read
 ```
 
-and may opt in after the corresponding Action release is published:
+and can opt in using the published Action:
 
 ```yaml
 - name: Review selected ADR

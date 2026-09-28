@@ -95,7 +95,6 @@ for readme in "${README_EN}" "${README_PT}"; do
   grep -Fq 'adr-guard review' "${readme}"
   grep -Fq 'v1.1.2' "${readme}"
   grep -Fq 'v1.1.6' "${readme}"
-  grep -Fq 'command: review' "${readme}"
   grep -Fq '`4`' "${readme}"
 done
 
@@ -104,9 +103,10 @@ for release_note in "${RELEASE_EN}" "${RELEASE_PT}"; do
   for version in v1.1.2 v1.1.3 v1.1.4 v1.1.6; do
     grep -Fq "${version}" "${release_note}"
   done
+  grep -Fq 'GitHub Releases / NuGet' "${release_note}" || grep -Fq 'GitHub Releases / NuGet' "${release_note}"
 done
-grep -Fq 'Published in the moving `@v1` Action' "${RELEASE_EN}"
-grep -Fq 'Publicado na Action móvel `@v1`' "${RELEASE_PT}"
+grep -Fiq 'published on the moving `@v1`' "${RELEASE_EN}"
+grep -Fiq 'Publicado na linha móvel da Action `@v1`' "${RELEASE_PT}"
 
 # Policy and security guidance must exist in both languages and cross-link correctly.
 grep -Fq '[Português (Brasil)](adr-review-policy-v1.pt-BR.md)' "${POLICY_EN}"

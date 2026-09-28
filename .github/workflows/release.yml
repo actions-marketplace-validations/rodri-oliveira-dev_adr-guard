@@ -1,13 +1,7 @@
 name: Release
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: release
@@ -21,13 +15,11 @@ env:
 jobs:
   build-and-pack:
     name: Validate, build, test and pack
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: read
     outputs:
       package-version: ${{ steps.version.outputs.package_version }}
@@ -36,10 +28,29 @@ jobs:
       validated-sha: ${{ steps.version.outputs.validated_sha }}
 
     steps:
+      - name: Verify CI success for dispatched main commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          successful_ci_run="$(
+            gh api               "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${VALIDATED_SHA}&event=push&status=completed&per_page=100"               --jq '.workflow_runs[] | select(.conclusion == "success") | .id'               | head -n 1
+          )"
+
+          if [[ -z "${successful_ci_run}" ]]; then
+            echo "::error::The manually selected main commit ${VALIDATED_SHA} does not have a successful completed CI push run. Wait for CI to pass, then dispatch Release again."
+            exit 1
+          fi
+
+          echo "Validated CI run ${successful_ci_run} for main commit ${VALIDATED_SHA}."
+
       - name: Checkout validated commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -52,7 +63,7 @@ jobs:
         id: version
         shell: bash
         env:
-          VALIDATED_SHA: ${{ github.event.workflow_run.head_sha }}
+          VALIDATED_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -390,7 +401,7 @@ jobs:
             type=raw,value=latest
           labels: |
             org.opencontainers.image.title=ADR Guard
-            org.opencontainers.image.description=A lightweight .NET CLI for validating, maintaining, indexing, and drafting Architecture Decision Records (ADRs).
+            org.opencontainers.image.description=A lightweight .NET CLI for validating, creating, indexing, drafting, and reviewing Architecture Decision Records (ADRs).
             org.opencontainers.image.url=https://github.com/${{ github.repository }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.documentation=https://github.com/${{ github.repository }}#readme
@@ -400,7 +411,7 @@ jobs:
             org.opencontainers.image.revision=${{ needs.build-and-pack.outputs.validated-sha }}
           annotations: |
             org.opencontainers.image.title=ADR Guard
-            org.opencontainers.image.description=A lightweight .NET CLI for validating, maintaining, indexing, and drafting Architecture Decision Records (ADRs).
+            org.opencontainers.image.description=A lightweight .NET CLI for validating, creating, indexing, drafting, and reviewing Architecture Decision Records (ADRs).
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ needs.build-and-pack.outputs.package-version }}
