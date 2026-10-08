@@ -1,6 +1,8 @@
 # Checklist de publicação no GitHub Marketplace
 
-Requisitos e estado público da listagem conferidos novamente em **27/09/2026**.
+Requisitos e estado da listagem originalmente conferidos em **27/09/2026**.
+
+> **Atualização 07/10/2026:** O proprietário forneceu a [URL da listagem do ADR Guard no Marketplace](https://github.com/marketplace/actions/adr-guard-architecture-decision-validator). A verificação pública independente em sessão deslogada permanece pendente na #49. O novo teste de consumidor externo do `@v1` publicado foi aprovado (consulte as [evidências externas](github-action-external-verification.pt-BR.md)). As instruções e observações de 27/09/2026 abaixo são preservadas como histórico.
 
 Referências oficiais:
 
