@@ -1,0 +1,259 @@
+{
+  "name": "adr-guard",
+  "publisher": "rodrioliveira",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://github.com/rodri-oliveira-dev/adr-guard/tree/main/extensions/vscode#readme",
+  "bugs": {
+    "url": "https://github.com/rodri-oliveira-dev/adr-guard/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rodri-oliveira-dev/adr-guard.git",
+    "directory": "extensions/vscode"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "adr",
+    "architecture",
+    "architecture decision records",
+    "governance",
+    "madr"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "ADR Guard runs a local CLI and is disabled until the workspace is trusted."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "ADR Guard requires a local file-system workspace in the workspace extension host."
+    }
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:adrGuard.checkInstallation",
+    "onCommand:adrGuard.initializeRepository",
+    "onCommand:adrGuard.createAdr",
+    "onCommand:adrGuard.validateAdrs",
+    "onCommand:adrGuard.validateChangedAdrs",
+    "onCommand:adrGuard.validateWithBaseline",
+    "onCommand:adrGuard.generateIndex",
+    "onCommand:adrGuard.selectAdrFormat",
+    "onCommand:adrGuard.refreshExplorer",
+    "onCommand:adrGuard.openAdr",
+    "onCommand:adrGuard.revealCurrentAdr",
+    "onView:adrGuard.adrExplorer"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "adrGuard.checkInstallation",
+        "title": "%command.checkInstallation%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.initializeRepository",
+        "title": "%command.initializeRepository%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.createAdr",
+        "title": "%command.createAdr%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.validateAdrs",
+        "title": "%command.validateAdrs%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.generateIndex",
+        "title": "%command.generateIndex%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.validateChangedAdrs",
+        "title": "%command.validateChangedAdrs%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.validateWithBaseline",
+        "title": "%command.validateWithBaseline%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.selectAdrFormat",
+        "title": "%command.selectAdrFormat%",
+        "category": "%command.category%",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "adrGuard.refreshExplorer",
+        "title": "%command.refreshExplorer%",
+        "category": "%command.category%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "adrGuard.openAdr",
+        "title": "%command.openAdr%",
+        "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.revealCurrentAdr",
+        "title": "%command.revealCurrentAdr%",
+        "category": "%command.category%",
+        "icon": "$(target)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "adrGuard.adrExplorer",
+          "name": "%view.adrExplorer%",
+          "icon": "$(book)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "adrGuard.adrExplorer",
+        "contents": "%view.adrExplorer.welcome%",
+        "when": "workspaceFolderCount == 0"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "adrGuard.refreshExplorer",
+          "when": "view == adrGuard.adrExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "adrGuard.revealCurrentAdr",
+          "when": "view == adrGuard.adrExplorer",
+          "group": "navigation"
+        },
+        {
+          "command": "adrGuard.selectAdrFormat",
+          "when": "view == adrGuard.adrExplorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "adrGuard.openAdr",
+          "when": "view == adrGuard.adrExplorer && (viewItem == adrFile || viewItem == adrRelationship)",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%configuration.title%",
+      "properties": {
+        "adrGuard.cli.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "%configuration.cli.path%"
+        },
+        "adrGuard.cli.timeoutMilliseconds": {
+          "type": "number",
+          "default": 15000,
+          "minimum": 1000,
+          "maximum": 120000,
+          "scope": "machine",
+          "description": "%configuration.cli.timeoutMilliseconds%"
+        },
+        "adrGuard.cli.maxOutputBytes": {
+          "type": "number",
+          "default": 262144,
+          "minimum": 1024,
+          "maximum": 1048576,
+          "scope": "machine",
+          "description": "%configuration.cli.maxOutputBytes%"
+        },
+        "adrGuard.validation.directory": {
+          "type": "string",
+          "default": "docs/adr",
+          "scope": "resource",
+          "description": "%configuration.validation.directory%"
+        },
+        "adrGuard.validation.adrFormat": {
+          "type": "string",
+          "enum": [
+            "canonical",
+            "madr-4"
+          ],
+          "default": "canonical",
+          "scope": "resource",
+          "description": "%configuration.validation.adrFormat%"
+        },
+        "adrGuard.validation.baseline": {
+          "type": "string",
+          "default": ".adrguard-baseline.json",
+          "scope": "resource",
+          "description": "%configuration.validation.baseline%"
+        },
+        "adrGuard.validation.onSave": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%configuration.validation.onSave%"
+        },
+        "adrGuard.validation.debounceMilliseconds": {
+          "type": "number",
+          "default": 750,
+          "minimum": 200,
+          "maximum": 5000,
+          "scope": "resource",
+          "description": "%configuration.validation.debounceMilliseconds%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('out',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "compile:tests": "tsc -p tsconfig.test.json",
+    "build": "node esbuild.mjs",
+    "test:unit": "npm run compile:tests && node --test \"out/test/unit/*.test.js\"",
+    "test:integration": "npm run compile:tests && npm run build && vscode-test && node scripts/run-untrusted-tests.mjs",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:l10n": "npm run compile:tests && node --test out/test/unit/localization.test.js",
+    "package:list": "vsce ls --no-dependencies",
+    "package:vsix": "vsce package --no-dependencies --out adr-guard-0.1.0.vsix",
+    "test:vsix": "node scripts/verify-vsix.mjs",
+    "vscode:prepublish": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/mocha": "10.0.10",
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.100.0",
+    "@vscode/test-cli": "0.0.15",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.0.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1"
+  },
+  "overrides": {
+    "diff": "8.0.3",
+    "serialize-javascript": "7.0.5"
+  }
+}
