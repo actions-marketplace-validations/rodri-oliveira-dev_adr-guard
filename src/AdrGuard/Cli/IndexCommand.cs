@@ -10,6 +10,14 @@ internal static class IndexCommand
         string directoryPath,
         string? outputPath,
         TextWriter output,
+        TextWriter error) =>
+        Run(directoryPath, outputPath, AdrFormat.Canonical, output, error);
+
+    internal static int Run(
+        string directoryPath,
+        string? outputPath,
+        AdrFormat adrFormat,
+        TextWriter output,
         TextWriter error)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
@@ -35,7 +43,7 @@ internal static class IndexCommand
             }
 
             var documents = AdrDocumentLoader.LoadDirectory(directoryPath);
-            var validationResult = AdrValidator.Validate(documents);
+            var validationResult = AdrValidator.Validate(documents, adrFormat);
 
             if (!validationResult.IsValid)
             {
@@ -43,7 +51,7 @@ internal static class IndexCommand
                 return ExitCodes.ValidationFailed;
             }
 
-            var content = AdrIndexGenerator.Generate(documents);
+            var content = AdrIndexGenerator.Generate(AdrStatusResolver.ForFormat(documents, adrFormat));
 
             if (File.Exists(resolvedOutputPath)
                 && string.Equals(
