@@ -1,11 +1,12 @@
+using System.Reflection;
 using AdrGuard.Generation;
 using AdrGuard.Generation.Providers;
+using AdrGuard.Configuration;
 using AdrGuard.Review;
 using AdrGuard.Review.Policy;
 using AdrGuard.Review.Providers;
 using AdrGuard.Review.Reporting;
 using AdrGuard.Review.Security;
-using System.Reflection;
 
 namespace AdrGuard.Cli;
 
@@ -19,7 +20,8 @@ internal static class CliApplication
         Validate and maintain Architecture Decision Records from the command line.
 
         Usage:
-          adr-guard check [directory]
+          adr-guard init [repository] [options]
+          adr-guard check [directory] [--format text|json|sarif]
           adr-guard index [directory] [--output <file>]
           adr-guard new [adr-directory] --title <title> [--template minimal|extended] [--template-file <path>] [--culture en-US|pt-BR] [--dry-run|--preview]
           adr-guard draft [directory] --title <title> --context <context> --provider <provider> --model <model> [--culture <name>] [--template minimal|extended | --template-file <path>] [--endpoint <uri>] [--context-file <path>]... [--include-existing-adrs] [--dry-run|--preview]
@@ -27,6 +29,7 @@ internal static class CliApplication
           adr-guard [options]
 
         Commands:
+          init     Initialize ADR Guard configuration in an existing repository.
           check    Validate ADR files. Defaults to the current directory.
           index    Validate ADR files and generate an index. Defaults to README.md.
           new      Create a Proposed ADR from an offline Markdown template.
@@ -47,9 +50,10 @@ internal static class CliApplication
 
     private const string CheckHelpText = """
         Usage:
-          adr-guard check [directory]
+          adr-guard check [directory] [--format text|json|sarif]
 
-        Validate ADR files recursively. The directory defaults to the current directory.
+        Validate ADR files recursively. The directory defaults to the configured ADR directory or current directory.
+        Text is the default. JSON and SARIF 2.1.0 are deterministic data documents written to stdout.
         """;
 
     private const string IndexHelpText = """
@@ -250,13 +254,28 @@ internal static class CliApplication
             return ExitCodes.Success;
         }
 
-        return args[0] switch
+        IReadOnlyList<string> effectiveArgs;
+        try
         {
-            "check" => RunCheck(args, output, error),
-            "index" => RunIndex(args, output, error),
-            "new" => NewCommand.Run(args, output, error, cancellationToken),
+            var configuration = args[0] == "init"
+                ? null
+                : AdrGuardConfigurationLoader.Load(Directory.GetCurrentDirectory());
+            effectiveArgs = ConfigurationArguments.Apply(args, configuration);
+        }
+        catch (AdrGuardConfigurationException exception)
+        {
+            error.WriteLine(exception.Message);
+            return ExitCodes.UsageError;
+        }
+
+        return effectiveArgs[0] switch
+        {
+            "init" => InitCommand.Run(effectiveArgs, output, error),
+            "check" => RunCheck(effectiveArgs, output, error),
+            "index" => RunIndex(effectiveArgs, output, error),
+            "new" => NewCommand.Run(effectiveArgs, output, error, cancellationToken),
             "draft" => RunDraft(
-                args,
+                effectiveArgs,
                 output,
                 error,
                 generationProvider,
@@ -264,14 +283,14 @@ internal static class CliApplication
                 environmentVariableReader,
                 cancellationToken),
             "review" => RunReview(
-                args,
+                effectiveArgs,
                 output,
                 error,
                 reviewProvider,
                 httpClientFactory,
                 environmentVariableReader,
                 cancellationToken),
-            _ => WriteUsageError(args, error),
+            _ => WriteUsageError(effectiveArgs, error),
         };
     }
 
@@ -286,19 +305,60 @@ internal static class CliApplication
             return ExitCodes.Success;
         }
 
-        if (args.Count > 2)
+        if (!TryParseCheckArguments(args, out var directoryPath, out var format))
         {
             return WriteCommandUsageError("check", error);
         }
 
-        var directoryPath = args.Count == 2 ? args[1] : ".";
+        return CheckCommand.Run(directoryPath, format, output, error);
+    }
 
-        if (directoryPath.StartsWith('-'))
+    private static bool TryParseCheckArguments(
+        IReadOnlyList<string> args,
+        out string directoryPath,
+        out CheckOutputFormat format)
+    {
+        directoryPath = ".";
+        format = CheckOutputFormat.Text;
+        var directoryAssigned = false;
+        var formatAssigned = false;
+
+        for (var index = 1; index < args.Count; index++)
         {
-            return WriteCommandUsageError("check", error);
+            var argument = args[index];
+            if (argument == "--format")
+            {
+                if (formatAssigned || index + 1 >= args.Count)
+                {
+                    return false;
+                }
+
+                format = args[++index] switch
+                {
+                    "text" => CheckOutputFormat.Text,
+                    "json" => CheckOutputFormat.Json,
+                    "sarif" => CheckOutputFormat.Sarif,
+                    _ => (CheckOutputFormat)(-1),
+                };
+                if (!Enum.IsDefined(format))
+                {
+                    return false;
+                }
+
+                formatAssigned = true;
+                continue;
+            }
+
+            if (argument.StartsWith('-') || directoryAssigned)
+            {
+                return false;
+            }
+
+            directoryPath = argument;
+            directoryAssigned = true;
         }
 
-        return CheckCommand.Run(directoryPath, output, error);
+        return true;
     }
 
     private static int RunIndex(
