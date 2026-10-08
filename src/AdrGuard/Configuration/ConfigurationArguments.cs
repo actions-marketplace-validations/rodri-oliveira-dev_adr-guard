@@ -8,6 +8,7 @@ internal static class ConfigurationArguments
     {
         ArgumentNullException.ThrowIfNull(args);
 
+        // --help must not be rewritten as a configured positional directory.
         if (configuration is null || args.Count == 0
             || (args.Count == 2 && args[1] is "-h" or "--help"))
         {
@@ -20,6 +21,7 @@ internal static class ConfigurationArguments
             case "check":
             case "index":
                 AddDirectoryIfMissing(configured, configuration.AdrDirectoryPath);
+                AddAdrFormatIfMissing(configured, configuration);
                 break;
             case "new":
             case "draft":
@@ -71,7 +73,22 @@ internal static class ConfigurationArguments
         or "--context-file"
         or "--policy"
         or "--policy-file"
-        or "--format";
+        or "--format"
+        or "--adr-format";
+
+    private static void AddAdrFormatIfMissing(
+        List<string> args,
+        AdrGuardConfiguration configuration)
+    {
+        if (configuration.AdrFormat is null
+            || args.Contains("--adr-format", StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        args.Add("--adr-format");
+        args.Add(configuration.AdrFormat);
+    }
 
     private static void AddTemplateIfMissing(
         List<string> args,
