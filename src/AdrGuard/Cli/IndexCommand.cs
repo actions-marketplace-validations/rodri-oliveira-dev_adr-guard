@@ -11,12 +11,25 @@ internal static class IndexCommand
         string? outputPath,
         TextWriter output,
         TextWriter error) =>
-        Run(directoryPath, outputPath, AdrFormat.Canonical, output, error);
+        Run(directoryPath, outputPath, AdrFormat.Canonical, null, false, null, null, false, output, error);
 
     internal static int Run(
         string directoryPath,
         string? outputPath,
         AdrFormat adrFormat,
+        TextWriter output,
+        TextWriter error) =>
+        Run(directoryPath, outputPath, adrFormat, null, false, null, null, false, output, error);
+
+    internal static int Run(
+        string directoryPath,
+        string? outputPath,
+        AdrFormat adrFormat,
+        string? lifecycleStatuses,
+        bool conventionalSupersession,
+        string? filenamePolicy,
+        string? validationProfile,
+        bool enrichedCatalog,
         TextWriter output,
         TextWriter error)
     {
@@ -42,8 +55,21 @@ internal static class IndexCommand
                 return ExitCodes.UsageError;
             }
 
-            var documents = AdrDocumentLoader.LoadDirectory(directoryPath);
-            var validationResult = AdrValidator.Validate(documents, adrFormat);
+            var policy = AdrFilenamePolicy.Parse(filenamePolicy);
+            var documents = AdrDocumentLoader.LoadDirectory(directoryPath)
+                .Select(policy.NormalizeIdentity).ToArray();
+            var validationResult = AdrValidator.Validate(
+                documents,
+                null,
+                AdrValidationOptionsFactory.Create(
+                    adrFormat,
+                    AdrRepositoryRoot.Resolve(directoryPath),
+                    lifecycleStatuses,
+                    conventionalSupersession,
+                    filenamePolicy,
+                    null,
+                    false,
+                    validationProfile));
 
             if (!validationResult.IsValid)
             {
@@ -51,7 +77,10 @@ internal static class IndexCommand
                 return ExitCodes.ValidationFailed;
             }
 
-            var content = AdrIndexGenerator.Generate(AdrStatusResolver.ForFormat(documents, adrFormat));
+            var resolvedDocuments = AdrStatusResolver.ForFormat(documents, adrFormat);
+            var content = enrichedCatalog
+                ? AdrIndexGenerator.GenerateEnriched(resolvedDocuments)
+                : AdrIndexGenerator.Generate(resolvedDocuments);
 
             if (File.Exists(resolvedOutputPath)
                 && string.Equals(

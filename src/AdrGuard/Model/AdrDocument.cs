@@ -8,4 +8,7 @@ internal sealed record AdrDocument(
     string? Title,
     string? Status,
     IReadOnlyList<AdrSection> Sections,
-    IReadOnlyDictionary<string, string>? Metadata = null);
+    IReadOnlyDictionary<string, string>? Metadata = null,
+    string? StableId = null,
+    AdrDecisionMetadata? DecisionMetadata = null,
+    IReadOnlyList<string>? MetadataErrors = null);

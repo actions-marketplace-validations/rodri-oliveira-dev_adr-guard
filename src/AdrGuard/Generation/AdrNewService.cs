@@ -28,7 +28,8 @@ internal sealed class AdrNewService
         string title,
         AdrTemplateDefinition template,
         bool dryRun,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        AdrFilenamePolicy? filenamePolicy = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -43,10 +44,13 @@ internal sealed class AdrNewService
                 nameof(title));
         }
 
+        var policy = filenamePolicy ?? AdrFilenamePolicy.Canonical;
         var documents = AdrDocumentLoader.LoadDirectory(
             directoryPath,
-            cancellationToken);
-        var existingValidation = AdrValidator.Validate(documents);
+            cancellationToken)
+            .Select(policy.NormalizeIdentity).ToArray();
+        var existingValidation = AdrValidator.Validate(
+            documents, null, new AdrValidationOptions(AdrFormat.Canonical, FilenamePolicy: filenamePolicy));
 
         if (!existingValidation.IsValid)
         {
@@ -62,7 +66,8 @@ internal sealed class AdrNewService
         var previewPath = AdrCreationService.AllocateFilePath(
             directoryPath,
             title,
-            documents);
+            documents,
+            filenamePolicy);
 
         if (File.Exists(previewPath))
         {
@@ -85,7 +90,8 @@ internal sealed class AdrNewService
             title,
             previewContent,
             documents,
-            cancellationToken);
+            cancellationToken,
+            filenamePolicy);
 
         if (dryRun || !preview.ValidationResult.IsValid)
         {
@@ -101,6 +107,7 @@ internal sealed class AdrNewService
                 title,
                 RenderForId,
                 previewPath,
+                filenamePolicy,
                 cancellationToken)
             .ConfigureAwait(false);
 
