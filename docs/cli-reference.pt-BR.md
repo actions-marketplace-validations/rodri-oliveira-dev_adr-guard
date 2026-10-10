@@ -24,6 +24,12 @@ adr-directory: "docs/adr"
 template: minimal
 # template-file: "docs/templates/team.md" # exclusivo com template
 # adr-format: canonical                   # canonical ou madr-4
+# lifecycle-statuses: Rejected=rejected,Under Review=proposed
+# conventional-supersession: true          # habilita relações no texto de status
+# filename-policy: canonical               # canonical, unnumbered, adr-prefix, numeric:1..9
+# placeholder-policy: warn                 # off (padrão), warn ou error
+# metadata-policy: validate                # validação opcional e limitada de metadados
+# validation-profile: legacy              # legacy, advisory, standard, strict
 ```
 
 Propriedades desconhecidas/duplicadas, versões incompatíveis, YAML aninhado, coleções, tags, anchors, aliases, block scalars, UTF-8 inválido, arquivos grandes demais, caminhos inseguros e uso simultâneo de `template`/`template-file` são rejeitados. Caminhos relativos partem do diretório da configuração. A configuração nunca é interpretada como comando e não expande variáveis de ambiente.

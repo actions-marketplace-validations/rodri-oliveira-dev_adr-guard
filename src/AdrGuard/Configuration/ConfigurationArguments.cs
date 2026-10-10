@@ -23,13 +23,31 @@ internal static class ConfigurationArguments
             case "baseline":
                 AddDirectoryIfMissing(configured, configuration.AdrDirectoryPath);
                 AddAdrFormatIfMissing(configured, configuration);
+                AddLifecyclePolicyIfMissing(configured, configuration);
+                AddConventionalSupersessionIfMissing(configured, configuration);
+                AddFilenamePolicyIfMissing(configured, configuration);
+                AddValidationProfileIfMissing(configured, configuration);
                 break;
             case "new":
+                AddDirectoryIfMissing(configured, configuration.AdrDirectoryPath);
+                AddTemplateIfMissing(configured, configuration);
+                AddFilenamePolicyIfMissing(configured, configuration);
+                break;
             case "draft":
                 AddDirectoryIfMissing(configured, configuration.AdrDirectoryPath);
                 AddTemplateIfMissing(configured, configuration);
                 break;
         }
+
+        if (args[0] == "check" && configuration.PlaceholderPolicy is not null
+            && !configured.Contains("--placeholder-policy", StringComparer.Ordinal))
+        {
+            configured.Add("--placeholder-policy");
+            configured.Add(configuration.PlaceholderPolicy);
+        }
+        if (args[0] == "check" && configuration.ValidateMetadata
+            && !configured.Contains("--validate-metadata", StringComparer.Ordinal))
+            configured.Add("--validate-metadata");
 
         return configured;
     }
@@ -62,7 +80,8 @@ internal static class ConfigurationArguments
     }
 
     private static bool OptionTakesValue(string option) => option is
-        "--output"
+        "--catalog"
+        or "--output"
         or "--title"
         or "--template"
         or "--template-file"
@@ -76,6 +95,10 @@ internal static class ConfigurationArguments
         or "--policy-file"
         or "--format"
         or "--adr-format"
+        or "--lifecycle-statuses"
+        or "--filename-policy"
+        or "--placeholder-policy"
+        or "--validation-profile"
         or "--base-ref"
         or "--baseline"
         or "--compare-ref";
@@ -114,5 +137,44 @@ internal static class ConfigurationArguments
             args.Add("--template");
             args.Add(configuration.Template);
         }
+    }
+
+    private static void AddLifecyclePolicyIfMissing(
+        List<string> args,
+        AdrGuardConfiguration configuration)
+    {
+        if (configuration.LifecycleStatuses is null
+            || args.Contains("--lifecycle-statuses", StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        args.Add("--lifecycle-statuses");
+        args.Add(configuration.LifecycleStatuses);
+    }
+
+    private static void AddConventionalSupersessionIfMissing(
+        List<string> args,
+        AdrGuardConfiguration configuration)
+    {
+        if (configuration.ConventionalSupersession
+            && !args.Contains("--conventional-supersession", StringComparer.Ordinal))
+        {
+            args.Add("--conventional-supersession");
+        }
+    }
+
+    private static void AddFilenamePolicyIfMissing(List<string> args, AdrGuardConfiguration configuration)
+    {
+        if (configuration.FilenamePolicy is null || args.Contains("--filename-policy", StringComparer.Ordinal)) return;
+        args.Add("--filename-policy");
+        args.Add(configuration.FilenamePolicy);
+    }
+
+    private static void AddValidationProfileIfMissing(List<string> args, AdrGuardConfiguration configuration)
+    {
+        if (configuration.ValidationProfile is null || args.Contains("--validation-profile", StringComparer.Ordinal)) return;
+        args.Add("--validation-profile");
+        args.Add(configuration.ValidationProfile);
     }
 }

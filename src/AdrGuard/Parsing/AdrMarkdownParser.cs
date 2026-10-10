@@ -13,7 +13,7 @@ internal static class AdrMarkdownParser
 
         var fileName = Path.GetFileName(filePath);
         var (id, slug) = ParseFileName(fileName);
-        var metadata = ParseFrontMatter(markdown);
+        var (metadata, metadataErrors) = ParseFrontMatter(markdown);
         var sections = new List<AdrSection>();
         string? title = null;
 
@@ -94,24 +94,30 @@ internal static class AdrMarkdownParser
             title,
             status,
             sections,
-            metadata);
+            metadata,
+            id.HasValue
+                ? $"ADR-{id.Value.ToString(CultureInfo.InvariantCulture)}"
+                : slug is null ? null : $"slug:{slug.ToLowerInvariant()}",
+            AdrDecisionMetadata.From(metadata),
+            metadataErrors);
     }
 
-    private static Dictionary<string, string> ParseFrontMatter(string markdown)
+    private static (Dictionary<string, string> Values, IReadOnlyList<string> Errors) ParseFrontMatter(string markdown)
     {
         var metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var errors = new List<string>();
         using var reader = new StringReader(markdown);
 
         if (!string.Equals(reader.ReadLine()?.Trim(), "---", StringComparison.Ordinal))
         {
-            return metadata;
+            return (metadata, errors);
         }
 
         while (reader.ReadLine() is { } line)
         {
             if (string.Equals(line.Trim(), "---", StringComparison.Ordinal))
             {
-                return metadata;
+                return (metadata, errors);
             }
 
             var separator = line.IndexOf(':');
@@ -122,22 +128,39 @@ internal static class AdrMarkdownParser
 
             var key = line[..separator].Trim();
             var value = line[(separator + 1)..].Trim();
-            if (value.Length >= 2
+            var quoted = value.Length >= 2
                 && ((value[0] == '"' && value[^1] == '"')
-                    || (value[0] == '\'' && value[^1] == '\'')))
+                    || (value[0] == '\'' && value[^1] == '\''));
+            // Only leading, unquoted YAML indicators introduce anchors, aliases
+            // or tags. Ordinary scalar content and quoted values may use these
+            // characters without enabling YAML evaluation.
+            var yamlIndicator = !quoted && value.Length > 0
+                && value[0] is '&' or '*' or '!';
+            if (key.Length > 64 || value.Length > 4096 || yamlIndicator)
+            {
+                errors.Add($"Metadata '{key}' exceeds limits or uses unsupported YAML features.");
+                continue;
+            }
+            if (quoted)
             {
                 value = value[1..^1];
             }
 
-            metadata.TryAdd(key, value);
+            if (!metadata.TryAdd(key, value))
+                errors.Add($"Metadata key '{key}' is duplicated.");
         }
 
-        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        errors.Add("Front matter is not terminated.");
+        return (metadata, errors);
     }
 
     private static (int? Id, string? Slug) ParseFileName(string fileName)
     {
         var stem = Path.GetFileNameWithoutExtension(fileName);
+        if (stem.StartsWith("ADR-", StringComparison.OrdinalIgnoreCase))
+        {
+            stem = stem[4..];
+        }
         var separatorIndex = stem.IndexOf('-');
 
         if (separatorIndex <= 0 || separatorIndex == stem.Length - 1)
@@ -150,8 +173,14 @@ internal static class AdrMarkdownParser
 
         return int.TryParse(idText, NumberStyles.None, CultureInfo.InvariantCulture, out var id)
             ? (id, slug)
-            : (null, slug);
+            : IsSlug(stem) ? (null, stem) : (null, null);
     }
+
+    private static bool IsSlug(string value) => value.Length > 0
+        && value[0] != '-'
+        && value[^1] != '-'
+        && !value.Contains("--", StringComparison.Ordinal)
+        && value.All(character => character == '-' || char.IsAsciiDigit(character) || character is >= 'a' and <= 'z');
 
     private static IEnumerable<string> ReadLines(string markdown)
     {

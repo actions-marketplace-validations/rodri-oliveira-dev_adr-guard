@@ -15,6 +15,12 @@ internal static class CheckCommand
             directoryPath,
             CheckOutputFormat.Text,
             AdrFormat.Canonical,
+            lifecycleStatuses: null,
+            conventionalSupersession: false,
+            filenamePolicy: null,
+            placeholderPolicy: null,
+            validateMetadata: false,
+            validationProfile: null,
             changed: false,
             baseReference: null,
             baselinePath: null,
@@ -26,6 +32,24 @@ internal static class CheckCommand
         string directoryPath,
         CheckOutputFormat format,
         AdrFormat adrFormat,
+        bool changed,
+        string? baseReference,
+        string? baselinePath,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken) =>
+        Run(directoryPath, format, adrFormat, null, false, null, null, false, null, changed, baseReference, baselinePath, output, error, cancellationToken);
+
+    internal static int Run(
+        string directoryPath,
+        CheckOutputFormat format,
+        AdrFormat adrFormat,
+        string? lifecycleStatuses,
+        bool conventionalSupersession,
+        string? filenamePolicy,
+        string? placeholderPolicy,
+        bool validateMetadata,
+        string? validationProfile,
         bool changed,
         string? baseReference,
         string? baselinePath,
@@ -47,7 +71,16 @@ internal static class CheckCommand
         {
             cancellationToken.ThrowIfCancellationRequested();
             var documents = AdrDocumentLoader.LoadDirectory(directoryPath, cancellationToken);
-            var fullResult = AdrValidator.Validate(documents, adrFormat);
+            var options = AdrValidationOptionsFactory.Create(
+                adrFormat,
+                AdrRepositoryRoot.Resolve(directoryPath),
+                lifecycleStatuses,
+                conventionalSupersession,
+                filenamePolicy,
+                placeholderPolicy,
+                validateMetadata,
+                validationProfile);
+            var fullResult = AdrValidator.Validate(documents, null, options);
             var result = fullResult;
             IReadOnlySet<string>? changedPaths = null;
             if (changed)
@@ -105,6 +138,11 @@ internal static class CheckCommand
             var failingResult = baseline is null
                 ? result
                 : new ValidationResult(baseline.NewIssues);
+            if (format == CheckOutputFormat.Text)
+            {
+                foreach (var warning in failingResult.Issues.Where(issue => issue.Severity == ValidationSeverity.Warning))
+                    error.WriteLine($"{warning.FilePath}: {warning.Code} warning {warning.Message}");
+            }
             if (!failingResult.IsValid)
             {
                 if (format == CheckOutputFormat.Text)
@@ -124,7 +162,9 @@ internal static class CheckCommand
             {
                 output.WriteLine(
                     baseline is null
-                        ? $"Validated {documents.Count} ADR(s): no issues found."
+                        ? failingResult.Issues.Any(issue => issue.Severity == ValidationSeverity.Warning)
+                            ? $"Validated {documents.Count} ADR(s): no errors; {failingResult.Issues.Count(issue => issue.Severity == ValidationSeverity.Warning)} warning(s)."
+                            : $"Validated {documents.Count} ADR(s): no issues found."
                         : $"Validated {documents.Count} ADR(s): no new issues. Baseline: {baseline.ExistingIssues.Count} existing, {baseline.ResolvedEntries.Count} resolved issue(s).");
             }
 
@@ -164,4 +204,5 @@ internal static class CheckCommand
         error.WriteLine($"Unable to validate ADRs: {exception.Message}");
         return ExitCodes.OperationalError;
     }
+
 }
