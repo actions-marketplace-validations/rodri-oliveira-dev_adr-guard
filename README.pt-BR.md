@@ -31,6 +31,7 @@ Está começando? Siga o guia progressivo:
 - gera um índice Markdown determinístico somente depois da validação;
 - oferece checks incrementais com Git, baselines de diagnóstico e relatórios JSON/SARIF;
 - oferece [análise consultiva de impacto arquitetural](docs/guides/architecture-impact-analysis.pt-BR.md), opcional e baseada em mapeamentos ADR-código explícitos;
+- verifica [drift arquitetural e evidências de fitness](docs/guides/architectural-drift.pt-BR.md) de forma opcional, sem avaliar MSBuild nem tratar evidência ausente como conformidade;
 - oferece escrita e revisão técnica opcionais com IA, revisão humana, providers e contexto explícitos;
 - integra-se a GitHub Actions, VS Code e imagens versionadas de container.
 
@@ -85,7 +86,7 @@ Consulte a [matriz de seleção](docs/decision-design/choosing-a-template.pt-BR.
 | Containers | Executar a mesma CLI versionada por GHCR ou Docker Hub | [Guia de container e cadeia de suprimentos](docs/container.pt-BR.md) |
 | Relatórios de CI | Produzir validação em texto, JSON ou SARIF | [Relatórios de check](docs/check-reports.pt-BR.md) |
 
-A [Action no GitHub Marketplace](https://github.com/marketplace/actions/adr-guard-architecture-decision-validator) e a [extensão no Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=rodrioliveira.adr-guard) estão publicadas. A tag móvel `@v1` está publicada e suporta `check`, `index` e `review` opcional desde a v1.1.6; `new` e `draft` continuam fluxos da CLI/container direto. A extensão não inclui a CLI.
+A [Action no GitHub Marketplace](https://github.com/marketplace/actions/adr-guard-architecture-decision-validator) e a [extensão no Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=rodrioliveira.adr-guard) estão publicadas. A tag móvel `@v1` está publicada e suporta `check`, `index`, `review` opcional desde a v1.1.6 e `impact` opcional desde a v1.5.0. Na v1.6.0, `drift` é disponibilizado por meio da CLI/container direto, assim como `new` e `draft`; não é um modo da Action composta. A extensão não inclui a CLI.
 
 ## Agent Skills (P0 + P1)
 
@@ -96,7 +97,7 @@ npx skills add rodri-oliveira-dev/adr-guard --list
 npx skills add rodri-oliveira-dev/adr-guard --skill adr-guard-create --agent codex
 ```
 
-A descoberta pela branch padrão só encontrará essas skills após o merge. Veja [instalação, segurança e escopo](docs/skills/README.pt-BR.md).
+As onze Agent Skills já estão disponíveis na branch padrão. Consulte [instalação, segurança e escopo](docs/skills/README.pt-BR.md) para escolher e instalar apenas os fluxos necessários.
 
 ## Documentação
 
