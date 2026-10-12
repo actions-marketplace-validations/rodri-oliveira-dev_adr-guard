@@ -2,7 +2,7 @@
 
 > Availability: `init`, `.adrguard.yml`, and structured `check` output were published in ADR Guard v1.2.0. MADR 4.0 format selection was published in v1.3.0. See [GitHub Releases](https://github.com/rodri-oliveira-dev/adr-guard/releases) for exact artifacts.
 
-> Architecture impact analysis is prepared for v1.5.0 but is not yet published. The public package remains v1.3.0 while the incomplete v1.4.0 distribution is resolved.
+> Architecture impact analysis was introduced in v1.5.0. Architectural drift is part of the v1.6.0 code and release scope. Confirm the coordinated v1.6.0 package or container publication in [GitHub Releases](https://github.com/rodri-oliveira-dev/adr-guard/releases) before installing or pinning those artifacts; the implementation branch does not publish them by itself.
 
 ## Initialize a repository
 
@@ -59,6 +59,14 @@ adr-guard impact [repository] --base-ref <ref> --map <file> [--format text|json]
 ```
 
 `impact` is explicit, advisory, and read-only. `repository` defaults to the current directory; `--map` is repository-relative. Text is the default and JSON uses the independent report schema `1.0`. Affected/unmapped findings return `0`, invalid usage returns `2`, and Git/history/manifest/bounds failures return `3`. See the [complete guide](guides/architecture-impact-analysis.md).
+
+## Architectural drift
+
+```text
+adr-guard drift [repository] --rules <file> [--evidence <file>]... [--baseline <file>] [--write-baseline <file> [--update-baseline]] [--format text|json] [--policy advisory|enforce]
+```
+
+`drift` verifies explicit ADR-backed rules without evaluating MSBuild or executing external tests. Advisory is the default. Conclusive analysis returns `0`; invalid usage returns `2`; unknown/inconclusive evidence or input failures return `3`; explicit enforcement returns `4` only for a new gate-enabled deterministic static violation. See the [complete guide](guides/architectural-drift.md).
 
 ## Troubleshooting
 

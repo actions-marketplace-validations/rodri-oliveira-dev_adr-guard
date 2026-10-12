@@ -31,6 +31,7 @@ New to the practice? Follow the progressive guide:
 - generates a deterministic Markdown index only after validation succeeds;
 - supports Git-aware incremental checks, diagnostic baselines, and JSON/SARIF reports;
 - offers opt-in, advisory [architecture impact analysis](docs/guides/architecture-impact-analysis.md) from explicit ADR-to-code mappings;
+- verifies opt-in [architectural drift and fitness evidence](docs/guides/architectural-drift.md) without evaluating MSBuild or treating missing evidence as compliance;
 - offers opt-in, human-reviewed AI drafting and technical review with explicit providers and context;
 - integrates with GitHub Actions, VS Code, and versioned container images.
 
@@ -85,7 +86,7 @@ See the [selection matrix](docs/decision-design/choosing-a-template.md), [comple
 | Containers | Run the same versioned CLI from GHCR or Docker Hub | [Container and supply-chain guide](docs/container.md) |
 | CI reports | Produce text, JSON, or SARIF validation output | [Check reports](docs/check-reports.md) |
 
-The [GitHub Marketplace Action](https://github.com/marketplace/actions/adr-guard-architecture-decision-validator) and [Visual Studio Marketplace extension](https://marketplace.visualstudio.com/items?itemName=rodrioliveira.adr-guard) are published. The moving `@v1` tag is published and supports `check`, `index`, and opt-in `review` since v1.1.6; `new` and `draft` remain CLI/direct-container workflows. The extension does not bundle the CLI.
+The [GitHub Marketplace Action](https://github.com/marketplace/actions/adr-guard-architecture-decision-validator) and [Visual Studio Marketplace extension](https://marketplace.visualstudio.com/items?itemName=rodrioliveira.adr-guard) are published. The moving `@v1` tag is published and supports `check`, `index`, opt-in `review` since v1.1.6, and opt-in `impact` since v1.5.0. In v1.6.0, `drift` is provided through the CLI/direct-container workflow, alongside `new` and `draft`; it is not a composite Action mode. The extension does not bundle the CLI.
 
 ## Agent Skills (P0 + P1)
 
@@ -96,7 +97,7 @@ npx skills add rodri-oliveira-dev/adr-guard --list
 npx skills add rodri-oliveira-dev/adr-guard --skill adr-guard-create --agent codex
 ```
 
-Skills are currently under development on a feature branch; the default-branch discovery command will work after merge. See [installation, safeguards, and scope](docs/skills/README.md).
+The eleven Agent Skills are available on the default branch. See [installation, safeguards, and scope](docs/skills/README.md) to select and install only the workflows you need.
 
 ## Documentation
 

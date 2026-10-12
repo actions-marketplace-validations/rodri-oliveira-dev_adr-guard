@@ -2,7 +2,7 @@
 
 > Disponibilidade: `init`, `.adrguard.yml` e a saída estruturada de `check` foram publicados no ADR Guard v1.2.0. A seleção do formato MADR 4.0 foi publicada na v1.3.0. Consulte as [Releases do GitHub](https://github.com/rodri-oliveira-dev/adr-guard/releases) para os artefatos exatos.
 
-> A análise de impacto arquitetural está preparada para a v1.5.0, mas ainda não foi publicada. O pacote público permanece na v1.3.0 enquanto a distribuição incompleta da v1.4.0 é resolvida.
+> A análise de impacto arquitetural foi introduzida na v1.5.0. O drift arquitetural faz parte do código e do escopo de release da v1.6.0. Confirme a publicação coordenada do pacote ou contêiner v1.6.0 nas [Releases do GitHub](https://github.com/rodri-oliveira-dev/adr-guard/releases) antes de instalar ou fixar esses artefatos; a branch de implementação não os publica sozinha.
 
 ## Inicializar um repositório
 
@@ -59,6 +59,14 @@ adr-guard impact [repositório] --base-ref <ref> --map <arquivo> [--format text|
 ```
 
 `impact` é explícito, consultivo e somente leitura. `repositório` usa o diretório atual por padrão; `--map` é relativo ao repositório. Texto é o formato padrão, e JSON usa o schema independente de relatório `1.0`. Achados afetados/não mapeados retornam `0`, uso inválido retorna `2`, e falhas de Git/histórico/manifesto/limites retornam `3`. Consulte o [guia completo](guides/architecture-impact-analysis.pt-BR.md).
+
+## Drift arquitetural
+
+```text
+adr-guard drift [repositório] --rules <arquivo> [--evidence <arquivo>]... [--baseline <arquivo>] [--write-baseline <arquivo> [--update-baseline]] [--format text|json] [--policy advisory|enforce]
+```
+
+`drift` verifica regras explícitas ligadas a ADRs sem avaliar MSBuild nem executar testes externos. Advisory é o padrão. Análise conclusiva retorna `0`; uso inválido retorna `2`; evidência desconhecida/inconclusiva ou falhas de entrada retornam `3`; enforcement explícito retorna `4` somente para uma nova violação estática determinística com gate habilitado. Consulte o [guia completo](guides/architectural-drift.pt-BR.md).
 
 ## Solução de problemas
 
