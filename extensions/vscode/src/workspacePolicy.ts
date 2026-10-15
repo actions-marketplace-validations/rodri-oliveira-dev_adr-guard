@@ -1,4 +1,4 @@
-import { realpath, stat } from 'node:fs/promises';
+import { lstat, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 export interface WorkspaceLocation {
@@ -91,9 +91,75 @@ export async function ensureResourceWithinWorkspace(
   }
 }
 
+export async function ensurePotentialDirectoryWithinWorkspace(
+  directoryPath: string,
+  workspaceRoot: string,
+): Promise<string> {
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = await realpath(workspaceRoot);
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : 'unknown filesystem error';
+    throw new WorkspacePolicyError(`The workspace folder is inaccessible: ${detail}`, 'invalid-path');
+  }
+  let cursor = directoryPath;
+  for (;;) {
+    try {
+      const resolved = await realpath(cursor);
+      if (!isResolvedPathWithin(resolved, resolvedRoot)) {
+        throw new WorkspacePolicyError(
+          'The requested directory resolves outside the selected workspace folder.',
+          'outside-workspace',
+        );
+      }
+      if (cursor === directoryPath && !(await stat(resolved)).isDirectory()) {
+        throw new WorkspacePolicyError('The requested ADR directory is not a directory.', 'invalid-path');
+      }
+      return directoryPath;
+    } catch (error: unknown) {
+      if (error instanceof WorkspacePolicyError) throw error;
+      if (isMissingPathError(error) && cursor !== workspaceRoot) {
+        const parent = path.dirname(cursor);
+        if (parent !== cursor) {
+          cursor = parent;
+          continue;
+        }
+      }
+      const detail = error instanceof Error ? error.message : 'unknown filesystem error';
+      throw new WorkspacePolicyError(`The requested directory is inaccessible: ${detail}`, 'invalid-path');
+    }
+  }
+}
+
+export async function ensurePotentialFileWithinWorkspace(
+  filePath: string,
+  workspaceRoot: string,
+): Promise<string> {
+  try {
+    const fileStat = await lstat(filePath);
+    if (fileStat.isSymbolicLink() || !fileStat.isFile()) {
+      throw new WorkspacePolicyError('The requested file must be a regular, non-symbolic-link file.', 'invalid-path');
+    }
+    await ensureResourceWithinWorkspace(filePath, workspaceRoot);
+    return filePath;
+  } catch (error: unknown) {
+    if (error instanceof WorkspacePolicyError) throw error;
+    if (isMissingPathError(error)) {
+      await ensurePotentialDirectoryWithinWorkspace(path.dirname(filePath), workspaceRoot);
+      return filePath;
+    }
+    const detail = error instanceof Error ? error.message : 'unknown filesystem error';
+    throw new WorkspacePolicyError(`The requested file is inaccessible: ${detail}`, 'invalid-path');
+  }
+}
+
 function normalizeForPlatform(value: string): string {
   const resolved = path.resolve(value);
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 export function isResolvedPathWithin(candidate: string, root: string): boolean {

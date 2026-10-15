@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { readConfiguration } from '../configuration';
+import { editFormMaximumInputCharacters } from '../contracts/editForm';
+import { newAdrFormMaximumInputCharacters } from '../contracts/newForm';
 import { OperationalLog } from '../logging';
 import { allWorkspaceRoots, asLocation } from '../workspace';
 import { resolveWorkspaceRoot } from '../workspacePolicy';
@@ -22,6 +24,7 @@ export class CliExecutor {
     folder: vscode.WorkspaceFolder,
     args: readonly string[],
     signal?: AbortSignal,
+    input?: string,
   ): Promise<CliExecution> {
     const workspaceRoot = await resolveWorkspaceRoot(asLocation(folder));
     const configuration = readConfiguration();
@@ -39,7 +42,11 @@ export class CliExecutor {
       cwd: workspaceRoot,
       timeoutMilliseconds: configuration.timeoutMilliseconds,
       maxOutputBytes: configuration.maxOutputBytes,
+      maxInputCharacters: args[0] === 'edit' && args.includes('--form')
+        ? editFormMaximumInputCharacters
+        : newAdrFormMaximumInputCharacters,
       ...(signal === undefined ? {} : { signal }),
+      ...(input === undefined ? {} : { input }),
     });
     this.log.info(
       `CLI completed: command=${args[0] ?? 'unknown'}, termination=${result.termination}, exit=${result.exitCode ?? 'none'}, stdoutBytes=${Buffer.byteLength(result.stdout)}, stderrBytes=${Buffer.byteLength(result.stderr)}.`,

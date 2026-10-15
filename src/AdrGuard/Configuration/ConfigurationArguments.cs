@@ -28,6 +28,14 @@ internal static class ConfigurationArguments
                 AddFilenamePolicyIfMissing(configured, configuration);
                 AddValidationProfileIfMissing(configured, configuration);
                 break;
+            case "edit":
+                AddAdrDirectoryIfMissing(configured, configuration.AdrDirectoryPath);
+                AddAdrFormatIfMissing(configured, configuration);
+                AddLifecyclePolicyIfMissing(configured, configuration);
+                AddConventionalSupersessionIfMissing(configured, configuration);
+                AddFilenamePolicyIfMissing(configured, configuration);
+                AddValidationProfileIfMissing(configured, configuration);
+                break;
             case "new":
                 AddDirectoryIfMissing(configured, configuration.AdrDirectoryPath);
                 AddTemplateIfMissing(configured, configuration);
@@ -39,13 +47,13 @@ internal static class ConfigurationArguments
                 break;
         }
 
-        if (args[0] == "check" && configuration.PlaceholderPolicy is not null
+        if ((args[0] is "check" or "edit") && configuration.PlaceholderPolicy is not null
             && !configured.Contains("--placeholder-policy", StringComparer.Ordinal))
         {
             configured.Add("--placeholder-policy");
             configured.Add(configuration.PlaceholderPolicy);
         }
-        if (args[0] == "check" && configuration.ValidateMetadata
+        if ((args[0] is "check" or "edit") && configuration.ValidateMetadata
             && !configured.Contains("--validate-metadata", StringComparer.Ordinal))
             configured.Add("--validate-metadata");
 
@@ -95,6 +103,7 @@ internal static class ConfigurationArguments
         or "--policy-file"
         or "--format"
         or "--adr-format"
+        or "--adr-directory"
         or "--lifecycle-statuses"
         or "--filename-policy"
         or "--placeholder-policy"
@@ -102,6 +111,13 @@ internal static class ConfigurationArguments
         or "--base-ref"
         or "--baseline"
         or "--compare-ref";
+
+    private static void AddAdrDirectoryIfMissing(List<string> args, string directory)
+    {
+        if (args.Contains("--adr-directory", StringComparer.Ordinal)) return;
+        args.Add("--adr-directory");
+        args.Add(directory);
+    }
 
     private static void AddAdrFormatIfMissing(
         List<string> args,

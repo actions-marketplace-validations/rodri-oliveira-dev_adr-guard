@@ -16,6 +16,7 @@ import { AdrExplorerController } from './explorer/controller';
 import { OperationalLog } from './logging';
 import { DiagnosticManager } from './validation/diagnostics';
 import { SaveValidationController } from './validation/onSave';
+import { NewAdrFormPanel } from './commands/newAdrForm';
 
 let activeRunner: CliRunner | undefined;
 
@@ -26,9 +27,22 @@ export function activate(context: vscode.ExtensionContext): void {
   const executor = new CliExecutor(discovery, runner, log);
   const diagnostics = new DiagnosticManager(executor, log);
   const saveValidation = new SaveValidationController(diagnostics, log);
-  const explorer = new AdrExplorerController(log);
   const core = { executor, diagnostics, log };
+  const installation = { discovery, runner, log };
+  const explorer = new AdrExplorerController(log, () => { void openVisual('list'); });
   activeRunner = runner;
+
+  async function openVisual(screen: 'list' | 'form'): Promise<void> {
+    await NewAdrFormPanel.show({
+      executor,
+      log,
+      extensionUri: context.extensionUri,
+      explorer: explorer.provider,
+      refreshExplorer: () => explorer.refresh(),
+      initializeRepository: async (folder) => initializeRepository(core, folder),
+      checkInstallation: async (folder, showNotification) => checkInstallation(installation, folder, showNotification),
+    }, screen);
+  }
 
   context.subscriptions.push(
     runner,
@@ -37,9 +51,11 @@ export function activate(context: vscode.ExtensionContext): void {
     saveValidation,
     explorer,
     vscode.commands.registerCommand('adrGuard.checkInstallation', async () =>
-      checkInstallation({ discovery, runner, log })),
+      checkInstallation(installation)),
     vscode.commands.registerCommand('adrGuard.initializeRepository', async () => initializeRepository(core)),
     vscode.commands.registerCommand('adrGuard.createAdr', async () => createAdr(core)),
+    vscode.commands.registerCommand('adrGuard.openVisual', async () => openVisual('list')),
+    vscode.commands.registerCommand('adrGuard.createAdrWithForm', async () => openVisual('form')),
     vscode.commands.registerCommand('adrGuard.validateAdrs', async () => validateAdrs(core)),
     vscode.commands.registerCommand('adrGuard.validateChangedAdrs', async () => validateChangedAdrs(core)),
     vscode.commands.registerCommand('adrGuard.validateWithBaseline', async () => validateWithBaseline(core)),
