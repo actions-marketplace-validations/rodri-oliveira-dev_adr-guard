@@ -27,6 +27,19 @@ public sealed class AdrCreationServiceTests
         Operate Redis.
         """;
 
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void CreationMutexUsesUserScopeOnlyOnWindows(
+        bool isWindows,
+        bool expectedCurrentUserOnly)
+    {
+        var options = AdrCreationService.CreateMutexOptions(isWindows);
+
+        Assert.False(options.CurrentSessionOnly);
+        Assert.Equal(expectedCurrentUserOnly, options.CurrentUserOnly);
+    }
+
     [Fact]
     public async Task ConcurrentDifferentTitlesAllocateDistinctIdsAndValidateCompleteSet()
     {

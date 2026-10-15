@@ -5,6 +5,8 @@ import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 import {
   eligibleWorkspaceFolders,
+  ensurePotentialDirectoryWithinWorkspace,
+  ensurePotentialFileWithinWorkspace,
   ensureResourceWithinWorkspace,
   isResolvedPathWithin,
   preferredWorkspaceLocation,
@@ -86,6 +88,48 @@ describe('workspace policy', () => {
     await symlink(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
     await assert.rejects(
       ensureResourceWithinWorkspace(path.join(link, 'outside.md'), root),
+      (error: unknown) => error instanceof WorkspacePolicyError && error.code === 'outside-workspace',
+    );
+  });
+
+  it('accepts a missing directory only when its existing parent remains inside the workspace', async () => {
+    const root = await temporaryDirectory();
+    const outside = await temporaryDirectory();
+    const missing = path.join(root, 'docs', 'future', 'adr');
+    assert.equal(await ensurePotentialDirectoryWithinWorkspace(missing, root), missing);
+
+    const link = path.join(root, 'linked');
+    await symlink(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+    await assert.rejects(
+      ensurePotentialDirectoryWithinWorkspace(path.join(link, 'future'), root),
+      (error: unknown) => error instanceof WorkspacePolicyError && error.code === 'outside-workspace',
+    );
+    const file = path.join(root, 'not-a-directory');
+    await writeFile(file, 'content');
+    await assert.rejects(
+      ensurePotentialDirectoryWithinWorkspace(file, root),
+      (error: unknown) => error instanceof WorkspacePolicyError && error.code === 'invalid-path',
+    );
+  });
+
+  it('accepts a future baseline but rejects directories and symbolic links as baseline files', async () => {
+    const root = await temporaryDirectory();
+    const future = path.join(root, 'config', 'baseline.json');
+    assert.equal(await ensurePotentialFileWithinWorkspace(future, root), future);
+
+    const directory = path.join(root, 'directory.json');
+    await mkdir(directory);
+    await assert.rejects(
+      ensurePotentialFileWithinWorkspace(directory, root),
+      (error: unknown) => error instanceof WorkspacePolicyError && error.code === 'invalid-path',
+    );
+
+    const outside = await temporaryDirectory();
+    await writeFile(path.join(outside, 'baseline.json'), '{}');
+    const link = path.join(root, 'linked');
+    await symlink(outside, link, process.platform === 'win32' ? 'junction' : 'dir');
+    await assert.rejects(
+      ensurePotentialFileWithinWorkspace(path.join(link, 'baseline.json'), root),
       (error: unknown) => error instanceof WorkspacePolicyError && error.code === 'outside-workspace',
     );
   });

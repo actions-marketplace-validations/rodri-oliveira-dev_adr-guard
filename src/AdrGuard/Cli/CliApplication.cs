@@ -28,7 +28,8 @@ internal static class CliApplication
           adr-guard check [directory] [--format text|json|sarif] [--adr-format canonical|madr-4] [--lifecycle-statuses <mapping>] [--conventional-supersession] [--filename-policy <policy>] [--placeholder-policy off|warn|error] [--validate-metadata] [--validation-profile <profile>] [--changed --base-ref <ref>] [--baseline <file>]
           adr-guard baseline [directory] --output <file> [--update] [--adr-format canonical|madr-4] [--lifecycle-statuses <mapping>] [--conventional-supersession] [--filename-policy <policy>] [--validation-profile <profile>]
           adr-guard index [directory] [--output <file>] [--adr-format canonical|madr-4] [--lifecycle-statuses <mapping>] [--conventional-supersession] [--filename-policy <policy>] [--validation-profile <profile>] [--catalog enriched]
-          adr-guard new [adr-directory] --title <title> [--template minimal|extended] [--template-file <path>] [--culture en-US|pt-BR] [--filename-policy <policy>] [--dry-run|--preview]
+          adr-guard new [adr-directory] (--title <title> [--dry-run|--preview] | --form) [--template minimal|extended] [--template-file <path>] [--culture en-US|pt-BR] [--filename-policy <policy>]
+          adr-guard edit <adr-file> --form [--adr-format canonical|madr-4] [--lifecycle-statuses <mapping>] [--conventional-supersession] [--filename-policy <policy>] [--placeholder-policy off|warn|error] [--validate-metadata] [--validation-profile <profile>]
           adr-guard draft [directory] --title <title> --context <context> --provider <provider> --model <model> [--culture <name>] [--template minimal|extended | --template-file <path>] [--endpoint <uri>] [--context-file <path>]... [--include-existing-adrs] [--dry-run|--preview]
           adr-guard review <adr-file> --provider <provider> --model <model> [--compare-ref <ref>] [--endpoint <uri>] [--context-file <path>]... [--include-existing-adrs] [--policy advisory|enforce] [--policy-file <path>] [--format text|json] [--output <path> [--overwrite]]
           adr-guard impact [repository] --base-ref <ref> --map <file> [--format text|json]
@@ -41,6 +42,7 @@ internal static class CliApplication
           baseline Generate or explicitly update a versioned diagnostic baseline.
           index    Validate ADR files and generate an index. Defaults to README.md.
           new      Create a Proposed ADR from an offline Markdown template.
+          edit     Safely load or update one existing ADR through a versioned form contract.
           draft    Generate a Proposed ADR draft through a configured AI provider.
           review   Request an advisory, read-only technical review of one existing ADR.
           impact   Correlate Git changes with explicit ADR-to-code mappings.
@@ -266,6 +268,7 @@ internal static class CliApplication
         IAdrReviewProvider? reviewProvider = null) =>
         RunCore(
             args,
+            TextReader.Null,
             output,
             error,
             generationProvider,
@@ -285,6 +288,7 @@ internal static class CliApplication
         IAdrReviewProvider? reviewProvider = null) =>
         RunCore(
             args,
+            TextReader.Null,
             output,
             error,
             generationProvider,
@@ -293,8 +297,26 @@ internal static class CliApplication
             reviewProvider,
             cancellationToken);
 
+    internal static int Run(
+        IReadOnlyList<string> args,
+        TextReader input,
+        TextWriter output,
+        TextWriter error,
+        CancellationToken cancellationToken = default) =>
+        RunCore(
+            args,
+            input,
+            output,
+            error,
+            null,
+            null,
+            null,
+            null,
+            cancellationToken);
+
     private static int RunCore(
         IReadOnlyList<string> args,
+        TextReader input,
         TextWriter output,
         TextWriter error,
         IAdrGenerationProvider? generationProvider,
@@ -304,6 +326,7 @@ internal static class CliApplication
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
@@ -339,7 +362,8 @@ internal static class CliApplication
             "check" => RunCheck(effectiveArgs, output, error, cancellationToken),
             "baseline" => RunBaseline(effectiveArgs, output, error, cancellationToken),
             "index" => RunIndex(effectiveArgs, output, error),
-            "new" => NewCommand.Run(effectiveArgs, output, error, cancellationToken),
+            "new" => NewCommand.Run(effectiveArgs, input, output, error, cancellationToken),
+            "edit" => EditFormCommand.Run(effectiveArgs, input, output, error, cancellationToken),
             "draft" => RunDraft(
                 effectiveArgs,
                 output,

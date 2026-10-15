@@ -3,7 +3,7 @@
   "publisher": "rodrioliveira",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "icon": "images/icon-vscode.png",
   "private": true,
   "license": "MIT",
@@ -48,6 +48,8 @@
     "onCommand:adrGuard.checkInstallation",
     "onCommand:adrGuard.initializeRepository",
     "onCommand:adrGuard.createAdr",
+    "onCommand:adrGuard.openVisual",
+    "onCommand:adrGuard.createAdrWithForm",
     "onCommand:adrGuard.validateAdrs",
     "onCommand:adrGuard.validateChangedAdrs",
     "onCommand:adrGuard.validateWithBaseline",
@@ -59,6 +61,15 @@
     "onView:adrGuard.adrExplorer"
   ],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "adrGuard",
+          "title": "%view.container%",
+          "icon": "images/icon-activity.svg"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "adrGuard.checkInstallation",
@@ -74,6 +85,18 @@
         "command": "adrGuard.createAdr",
         "title": "%command.createAdr%",
         "category": "%command.category%"
+      },
+      {
+        "command": "adrGuard.openVisual",
+        "title": "%command.openVisual%",
+        "category": "%command.category%",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "adrGuard.createAdrWithForm",
+        "title": "%command.createAdrWithForm%",
+        "category": "%command.category%",
+        "icon": "$(new-file)"
       },
       {
         "command": "adrGuard.validateAdrs",
@@ -120,7 +143,7 @@
       }
     ],
     "views": {
-      "explorer": [
+      "adrGuard": [
         {
           "id": "adrGuard.adrExplorer",
           "name": "%view.adrExplorer%",
@@ -138,6 +161,11 @@
     "menus": {
       "view/title": [
         {
+          "command": "adrGuard.createAdrWithForm",
+          "when": "view == adrGuard.adrExplorer",
+          "group": "navigation@2"
+        },
+        {
           "command": "adrGuard.refreshExplorer",
           "when": "view == adrGuard.adrExplorer",
           "group": "navigation"
@@ -148,7 +176,7 @@
           "group": "navigation"
         },
         {
-          "command": "adrGuard.selectAdrFormat",
+          "command": "adrGuard.openVisual",
           "when": "view == adrGuard.adrExplorer",
           "group": "navigation"
         }
@@ -186,6 +214,38 @@
           "scope": "machine",
           "description": "%configuration.cli.maxOutputBytes%"
         },
+        "adrGuard.ui.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "pt-BR",
+            "en-US"
+          ],
+          "default": "auto",
+          "scope": "window",
+          "description": "%configuration.ui.language%"
+        },
+        "adrGuard.creation.documentLanguage": {
+          "type": "string",
+          "enum": [
+            "pt-BR",
+            "en-US"
+          ],
+          "default": "en-US",
+          "scope": "resource",
+          "description": "%configuration.creation.documentLanguage%"
+        },
+        "adrGuard.creation.defaultTemplate": {
+          "type": "string",
+          "enum": [
+            "configured",
+            "minimal",
+            "extended"
+          ],
+          "default": "configured",
+          "scope": "resource",
+          "description": "%configuration.creation.defaultTemplate%"
+        },
         "adrGuard.validation.directory": {
           "type": "string",
           "default": "docs/adr",
@@ -221,6 +281,14 @@
           "maximum": 5000,
           "scope": "resource",
           "description": "%configuration.validation.debounceMilliseconds%"
+        },
+        "adrGuard.validation.baseReference": {
+          "type": "string",
+          "default": "main",
+          "minLength": 1,
+          "maxLength": 256,
+          "scope": "resource",
+          "description": "%configuration.validation.baseReference%"
         }
       }
     }
@@ -236,7 +304,7 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:l10n": "npm run compile:tests && node --test out/test/unit/localization.test.js",
     "package:list": "vsce ls --no-dependencies",
-    "package:vsix": "vsce package --no-dependencies --out adr-guard-0.1.1.vsix",
+    "package:vsix": "vsce package --no-dependencies --out adr-guard-1.0.0.vsix",
     "test:vsix": "node scripts/verify-vsix.mjs",
     "vscode:prepublish": "npm run typecheck && npm run build"
   },
@@ -250,6 +318,7 @@
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "eslint": "10.0.1",
+    "linkedom": "0.18.12",
     "typescript": "5.9.3",
     "typescript-eslint": "8.71.1"
   },

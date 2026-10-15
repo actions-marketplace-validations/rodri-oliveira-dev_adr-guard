@@ -153,11 +153,7 @@ internal sealed class AdrCreationService
     {
         using var mutex = new Mutex(
             CreateMutexName(directoryPath),
-            new NamedWaitHandleOptions
-            {
-                CurrentSessionOnly = false,
-                CurrentUserOnly = true,
-            });
+            CreateMutexOptions(OperatingSystem.IsWindows()));
 
         var acquired = false;
         try
@@ -270,6 +266,16 @@ internal sealed class AdrCreationService
 
         return "adr-guard-create-" + Convert.ToHexString(hash);
     }
+
+    internal static NamedWaitHandleOptions CreateMutexOptions(bool isWindows) =>
+        new()
+        {
+            CurrentSessionOnly = false,
+            // .NET 10.0.13 stores user-scoped Unix mutexes under XDG_RUNTIME_DIR
+            // or HOME, neither of which is writable for arbitrary container UIDs.
+            // The patched runtime secures the global shared-memory directory.
+            CurrentUserOnly = isWindows,
+        };
 
     private static string ResolveDirectoryIdentity(string directoryPath)
     {
