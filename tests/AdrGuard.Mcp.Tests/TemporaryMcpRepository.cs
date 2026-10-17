@@ -32,11 +32,22 @@ internal sealed class TemporaryMcpRepository : IDisposable
 
     internal IReadOnlyDictionary<string, string> Snapshot() =>
         Directory.EnumerateFiles(Root, "*", SearchOption.AllDirectories)
+            // Ignore only transient Git lock files, which can appear and
+            // disappear during read-only Git commands. Keep index, refs,
+            // config, and all other Git metadata in the integrity snapshot.
+            .Where(path => !IsTransientGitLock(path))
             .Order(StringComparer.Ordinal)
             .ToDictionary(
                 path => Path.GetRelativePath(Root, path).Replace(Path.DirectorySeparatorChar, '/'),
                 path => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))),
                 StringComparer.Ordinal);
+
+    private bool IsTransientGitLock(string path)
+    {
+        var relative = Path.GetRelativePath(Root, path);
+        return relative.StartsWith($".git{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+               && Path.GetFileName(path).EndsWith(".lock", StringComparison.Ordinal);
+    }
 
     internal void InitializeGit()
     {
