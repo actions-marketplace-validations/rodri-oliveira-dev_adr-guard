@@ -11,7 +11,7 @@ sidebar:
 O ADR Guard para VS Code é uma interface executada no host do workspace sobre a CLI .NET. A extensão oferece navegação, formulários, configurações e diagnósticos em Problems; a CLI continua sendo a autoridade para parsing, geração, edição, validação, políticas e códigos de saída.
 
 :::note[Status de publicação]
-Estas capturas documentam a interface disponível na extensão **1.0.0 publicada**, com os contratos de formulário da CLI **1.7.0 publicada**. As telas de arquitetura/governança/IA e o provider MCP preparados para a extensão **1.1.0** estão documentados em texto abaixo porque ainda não há novas capturas verificadas nem versão publicada da extensão. Releases da extensão, CLI e MCP são independentes.
+Estas capturas registram a interface da extensão **1.0.0**, com os contratos de formulário da CLI **1.7.0**, e continuam representativas da interface compartilhada na versão **1.0.1** publicada no Marketplace. As telas de arquitetura/governança/IA e o provider MCP preparados para a extensão **1.1.0** estão documentados em texto abaixo porque ainda não há capturas verificadas nem release 1.1.0 no Marketplace. Releases da extensão, CLI e MCP são independentes.
 :::
 
 Para a candidata 1.1.0 ainda não publicada, o [workflow VS Code VSIX Package no GitHub Actions](https://github.com/rodri-oliveira-dev/adr-guard/actions/workflows/vscode-extension-release.yml) gera e valida um `.vsix` versionado, disponível nos **Artifacts** da execução bem-sucedida por **21 dias** (sujeito aos limites de retenção do repositório). Essa opção permite instalação manual por artifact; **o workflow não publica no Marketplace**. Consulte as [notas da candidata](https://github.com/rodri-oliveira-dev/adr-guard/blob/main/docs/releases/vscode-v1.1.0.pt-BR.md) para download e instalação manual.
@@ -119,7 +119,7 @@ Use **ADR Guard: Validar ADRs** para validação completa, **Validar ADRs altera
 
 ![Painel Problems do VS Code mostrando um diagnóstico ADR005 real para uma seção Decision ausente.](/adr-guard/images/vscode/adr-problems.png)
 
-Relatórios schema `1.0` identificam o arquivo, mas não uma faixa exata no conteúdo. Por isso, os itens em Problems navegam para linha 1, coluna 1 sem afirmar que essa posição causou o problema. Saída malformada, schemas incompatíveis, caminhos inseguros, códigos de saída contraditórios e exits 2–4 são falhas operacionais, não validações limpas.
+Relatórios schema `1.0` podem incluir linha e coluna opcionais, baseadas em 1, quando a CLI possui evidência confiável do parser. Os itens em Problems navegam diretamente para essas posições; diagnósticos sem essa evidência preservam o fallback no nível do arquivo, na linha 1, coluna 1. Saída malformada, schemas incompatíveis, caminhos inseguros, códigos de saída contraditórios e exits 2–4 são falhas operacionais, não validações limpas.
 
 A validação verifica regras determinísticas do documento. Ela não aprova a escolha arquitetural, não transforma o status de uma ADR em aprovação de governança e não substitui revisão humana.
 

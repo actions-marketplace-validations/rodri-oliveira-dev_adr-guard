@@ -2,7 +2,7 @@
 
 > Disponibilidade: `init`, `.adrguard.yml` e a saída estruturada de `check` foram publicados no ADR Guard v1.2.0. A seleção do formato MADR 4.0 foi publicada na v1.3.0. Consulte as [Releases do GitHub](https://github.com/rodri-oliveira-dev/adr-guard/releases) para os artefatos exatos.
 
-> A análise de impacto arquitetural foi introduzida na v1.5.0, o drift arquitetural na v1.6.0 e os contratos de formulário visual na v1.7.0. A CLI 1.8.0 está preparada, mas não publicada; confirme a disponibilidade exata nas [Releases do GitHub](https://github.com/rodri-oliveira-dev/adr-guard/releases) e no NuGet.org.
+> A análise de impacto arquitetural foi introduzida na v1.5.0, o drift arquitetural na v1.6.0 e os contratos de formulário visual na v1.7.0. A CLI 1.8.0 está publicada no [NuGet.org](https://www.nuget.org/packages/RodriOliveira.AdrGuard/1.8.0) e em sua [GitHub Release](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.8.0).
 
 > Os contratos de formulário visual no schema `1.0` exigem CLI 1.7.0 ou superior e, no uso visual, uma extensão VS Code compatível e versionada separadamente. Versões da CLI, extensão e MCP são independentes.
 
@@ -128,11 +128,13 @@ IDs de campo são identificadores opacos de cada carregamento; clientes não dev
 
 ## Saída do check
 
+> Não lançado: `--diagnostic-locations` está disponível no código-fonte atual, mas não faz parte do pacote publicado da CLI 1.8.0. Use essa opção somente com um build do código-fonte até que uma versão da CLI que a contenha seja lançada.
+
 ```text
-adr-guard check [diretório] [--format text|json|sarif]
+adr-guard check [diretório] [--format text|json|sarif] [--diagnostic-locations]
 ```
 
-`text` permanece como default. JSON usa schema `1.0`; SARIF usa `2.1.0`. Ambos são gravados no stdout em sucesso e falha de validação; diagnósticos operacionais usam stderr. Os exit codes continuam `0` para válido, `1` para diagnósticos ADR, `2` para uso/configuração inválida e `3` para falha operacional.
+`text` permanece como default. JSON usa schema `1.0`; SARIF usa `2.1.0`. `--diagnostic-locations` habilita linha/coluna baseadas em um ou regiões SARIF somente quando há evidência; posições não comprovadas são omitidas. Sem a flag, o formato existente do relatório é preservado para clientes estritos. Ambos são gravados no stdout em sucesso e falha de validação; diagnósticos operacionais usam stderr. Os exit codes continuam `0` para válido, `1` para diagnósticos ADR, `2` para uso/configuração inválida e `3` para falha operacional.
 
 ## Impacto arquitetural
 

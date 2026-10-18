@@ -2,7 +2,7 @@
 
 > Availability: `init`, `.adrguard.yml`, and structured `check` output were published in ADR Guard v1.2.0. MADR 4.0 format selection was published in v1.3.0. See [GitHub Releases](https://github.com/rodri-oliveira-dev/adr-guard/releases) for exact artifacts.
 
-> Architecture impact analysis was introduced in v1.5.0, architectural drift in v1.6.0, and visual form contracts in v1.7.0. CLI 1.8.0 is prepared but not published; confirm exact availability in [GitHub Releases](https://github.com/rodri-oliveira-dev/adr-guard/releases) and NuGet.org.
+> Architecture impact analysis was introduced in v1.5.0, architectural drift in v1.6.0, and visual form contracts in v1.7.0. CLI 1.8.0 is published on [NuGet.org](https://www.nuget.org/packages/RodriOliveira.AdrGuard/1.8.0) and in its [GitHub Release](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.8.0).
 
 > The schema `1.0` visual-form contracts require CLI 1.7.0 or newer and a separately versioned compatible VS Code extension when used visually. CLI, extension, and MCP versions are independent.
 
@@ -128,11 +128,13 @@ Field IDs are opaque per-load identifiers; clients must not infer or hard-code t
 
 ## Check output
 
+> Unreleased: `--diagnostic-locations` is available in the current source tree but is not part of the published CLI 1.8.0 package. Use this option only with a source build until a containing CLI version is released.
+
 ```text
-adr-guard check [directory] [--format text|json|sarif]
+adr-guard check [directory] [--format text|json|sarif] [--diagnostic-locations]
 ```
 
-`text` remains the default. JSON uses schema version `1.0`; SARIF uses version `2.1.0`. Both are written to stdout on success and ADR validation failure, while operational diagnostics use stderr. Exit codes remain `0` for valid, `1` for ADR diagnostics, `2` for invalid usage/configuration, and `3` for operational failure.
+`text` remains the default. JSON uses schema version `1.0`; SARIF uses version `2.1.0`. `--diagnostic-locations` opts machine reports into evidenced one-based line/column properties or SARIF regions; it omits locations that cannot be proven. Without the flag, the existing report shape is preserved for strict clients. Both formats are written to stdout on success and ADR validation failure, while operational diagnostics use stderr. Exit codes remain `0` for valid, `1` for ADR diagnostics, `2` for invalid usage/configuration, and `3` for operational failure.
 
 ## Architecture impact
 
