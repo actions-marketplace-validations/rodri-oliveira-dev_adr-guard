@@ -291,6 +291,50 @@ public sealed class AdrValidatorTests
     }
 
     [Fact]
+    public void ValidateLocatesUnusableSupersededBySectionsWithoutLocatingAbsentSection()
+    {
+        var absent = Parse(
+            "docs/adr/0001-absent.md",
+            ValidMarkdown("Absent", "Superseded"));
+        var empty = Parse(
+            "docs/adr/0002-empty.md",
+            ValidMarkdown("Empty", "Superseded")
+                + $"{Environment.NewLine}{Environment.NewLine}## Superseded by{Environment.NewLine}");
+        var unresolved = Parse(
+            "docs/adr/0003-unresolved.md",
+            ValidMarkdown("Unresolved", "Superseded")
+                + $"{Environment.NewLine}{Environment.NewLine}## Superseded by{Environment.NewLine}"
+                + $"[Missing ADR](0009-missing.md){Environment.NewLine}");
+
+        var result = AdrValidator.Validate([absent, empty, unresolved]);
+        var issues = result.Issues
+            .Where(issue => issue.Code == ValidationCodes.MissingSupersededBy)
+            .ToArray();
+
+        var absentIssue = Assert.Single(
+            issues,
+            issue => issue.FilePath.EndsWith("0001-absent.md", StringComparison.Ordinal));
+        Assert.Null(absentIssue.Line);
+        Assert.Null(absentIssue.Column);
+
+        var emptyIssue = Assert.Single(
+            issues,
+            issue => issue.FilePath.EndsWith("0002-empty.md", StringComparison.Ordinal));
+        Assert.Equal(15, emptyIssue.Line);
+        Assert.Equal(1, emptyIssue.Column);
+
+        var unresolvedIssue = Assert.Single(
+            issues,
+            issue => issue.FilePath.EndsWith("0003-unresolved.md", StringComparison.Ordinal));
+        Assert.Equal(15, unresolvedIssue.Line);
+        Assert.Equal(1, unresolvedIssue.Column);
+        Assert.Contains(
+            result.Issues,
+            issue => issue.Code == ValidationCodes.BrokenReference
+                && issue.FilePath.EndsWith("0003-unresolved.md", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ValidateAcceptsSupersededByLinkToExistingAdr()
     {
         const string firstMarkdown = """
