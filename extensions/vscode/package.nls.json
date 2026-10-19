@@ -22,6 +22,9 @@
   "configuration.cli.path": "Absolute path to the trusted ADR Guard executable. When empty, the workspace extension host PATH is searched.",
   "configuration.cli.timeoutMilliseconds": "Maximum time in milliseconds for an ADR Guard CLI invocation.",
   "configuration.cli.maxOutputBytes": "Maximum bytes captured separately from stdout and stderr for an ADR Guard CLI invocation.",
+  "configuration.mcp.enabled": "Enable the optional ADR Guard MCP server definition for this workspace folder. Disabled by default.",
+  "configuration.mcp.path": "Absolute machine-local path to adr-guard-mcp.dll or the native adr-guard-mcp executable on the workspace extension host.",
+  "mcp.provider.label": "ADR Guard MCP servers",
   "configuration.ui.language": "Language used by the ADR Guard Webview: automatic (VS Code), Portuguese (Brazil), or English. Native VS Code UI keeps the editor language.",
   "configuration.creation.documentLanguage": "Default language for new ADR documents in this workspace folder.",
   "configuration.creation.defaultTemplate": "Default ADR creation template: CLI-configured, minimal, or extended.",
@@ -30,5 +33,13 @@
   "configuration.validation.baseline": "Workspace-relative path to the existing diagnostic baseline JSON file used by baseline validation.",
   "configuration.validation.onSave": "Validate ADRs after saving a Markdown file in the configured ADR directory. Disabled by default.",
   "configuration.validation.debounceMilliseconds": "Delay in milliseconds used to coalesce validation after saves.",
-  "configuration.validation.baseReference": "Default local Git reference suggested for incremental validation. The command remains editable and never fetches automatically."
+  "configuration.validation.baseReference": "Default local Git reference suggested for incremental validation. The command remains editable and never fetches automatically.",
+  "configuration.analysis.impactManifest": "Workspace-relative ADR-to-code impact manifest path.",
+  "configuration.analysis.driftRules": "Workspace-relative architecture fitness rules path.",
+  "configuration.analysis.driftBaseline": "Optional workspace-relative architectural drift baseline path.",
+  "configuration.analysis.driftPolicy": "Default architectural drift policy. Advisory is the safe default.",
+  "configuration.governance.catalog": "Default ADR index catalog mode.",
+  "configuration.ai.provider": "Preferred AI provider for explicitly initiated draft and review operations. No provider is selected by default.",
+  "configuration.ai.model": "Preferred provider model identifier. ADR Guard does not choose a default model.",
+  "configuration.ai.endpoint": "HTTPS endpoint used only by the openai-compatible provider. Credentials are never stored here."
 }

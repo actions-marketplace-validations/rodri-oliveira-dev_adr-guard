@@ -2,11 +2,35 @@
 
 Notable changes to **ADR Guard** (`RodriOliveira.AdrGuard`, the .NET CLI/Tool and its coordinated distribution) are tracked here by published version. The separately versioned VS Code extension has its own [changelog](extensions/vscode/CHANGELOG.md).
 
-Version links below point to GitHub Releases. Dates and previously shipped highlights follow the published release history. Versions 1.6.0 and 1.7.0 are prepared but not published; see their bilingual release candidates under [`docs/releases`](docs/releases).
+Version links below point to GitHub Releases. Dates and previously shipped highlights follow the published release history. Prepared versions are explicitly marked as unpublished release candidates.
 
 ## Unreleased
 
-## [1.7.0](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.7.0) — Unreleased
+### Added
+- Prepare an authenticated GitHub Packages distribution channel for future MCP versions and a separate manual backfill of the existing, immutable MCP 1.0.0 release. Package hash and commit provenance are validated before upload; NuGet.org and MCP Registry remain the primary publication channels.
+- Add opt-in one-based `line` and `column` evidence to schema 1.0 validation diagnostics and matching SARIF regions while preserving the default report shape and file-only findings when no precise location is known.
+
+### Fixed
+- Fix the independent MCP release version-reservation step to distinguish HTTP 404 (create) from HTTP 200 (verify), cap GET/POST API responses to 64 KiB, and keep authorization tokens out of process arguments; add offline regression tests before any package publication.
+- Resolve physical Git directory identities before repository containment checks so macOS `/var` and `/private/var` aliases no longer break MCP impact analysis or incremental ADR detection. Physical containment and symlink protections remain enforced.
+
+## [1.8.0](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.8.0) — 2026-10-17
+
+### Added
+- Released CLI 1.8.0 with the compatible domain contracts for independently versioned VS Code 1.1.0 and MCP 1.0.0 source candidates, without changing established CLI commands, flags, defaults, schemas, or exit codes.
+- Added the source-only `adr-guard-mcp` executable with seven bounded, read-only schema `1.0` tools over `stdio`: ADR listing/reading/search, declared relationships, validation, impact analysis, and architecture verification.
+- Added bilingual MCP overview, configuration, tool-contract, and security documentation plus synchronized portal routes.
+- Prepared the independently versioned `RodriOliveira.AdrGuard.Mcp` .NET Tool, MCP Registry manifest, isolated package smoke tests, and manual `MCP Release` workflow for NuGet.org, GitHub Releases, and the official Registry.
+- Added audited compatibility and implementation-to-documentation traceability for the CLI, extension, and MCP public surfaces.
+
+### Security and publication
+- MCP processes are scoped to one validated repository, bound by file/response/time limits, and do not expose write tools, execute workspace content, fetch Git refs, or run evidence producers.
+- Git adapters now close subprocess standard input so MCP `stdio` protocol messages can never be consumed by a child Git process during impact or drift operations.
+- At the time of the CLI 1.8.0 GitHub Release, MCP 1.0.0 remained an independently versioned source candidate without an official MCP package, installer, container or Registry entry; a local source build was required.
+- CLI 1.8.0 was published on [GitHub Releases](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.8.0) on 2026-10-17 with the `RodriOliveira.AdrGuard.1.8.0.nupkg` asset; NuGet.org availability must be checked separately. MCP publication uses its separate manual main-only OIDC workflow and must be verified against its own NuGet and MCP Registry channels.
+- Full release notes: [English](docs/releases/v1.8.0.md) · [Português](docs/releases/v1.8.0.pt-BR.md).
+
+## [1.7.0](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.7.0) — 2026-10-15
 
 ### Added
 - Added the bounded schema `1.0` `adr-guard new --form` stdin/stdout contract for native-template discovery, side-effect-free preview, and atomic creation used by the VS Code visual form.
@@ -16,7 +40,7 @@ Version links below point to GitHub Releases. Dates and previously shipped highl
 - Existing `adr-guard new` arguments and output remain unchanged. Custom templates are reported as incompatible with structured fields and must use the traditional flow; they are never silently replaced.
 - Existing ADR filenames and identifiers are never changed by `edit`; canonical and MADR 4.0 validation settings continue to come from explicit arguments or repository configuration.
 
-## [1.6.0](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.6.0) — Unreleased
+## [1.6.0](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/v1.6.0) — 2026-10-12
 
 ### Added
 - Versioned ADR fitness-rule, external-evidence, drift-report and snapshot contracts.

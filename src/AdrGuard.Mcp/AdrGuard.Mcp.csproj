@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>adr-guard-mcp</AssemblyName>
+    <RootNamespace>AdrGuard.Mcp</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>adr-guard-mcp</ToolCommandName>
+
+    <PackageId>RodriOliveira.AdrGuard.Mcp</PackageId>
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <Title>ADR Guard MCP Server</Title>
+    <Authors>Rodrigo de Oliveira</Authors>
+    <Description>Expose bounded, read-only Architecture Decision Record discovery, validation, impact analysis, and architectural drift verification through the Model Context Protocol.</Description>
+    <PackageTags>adr;architecture;architecture-decision-records;mcp;model-context-protocol;dotnet-tool;validation;architecture-impact;architecture-drift</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>First stable release of the read-only ADR Guard MCP server. Exposes seven bounded schema 1.0 tools over stdio, with repository isolation, structured results, cancellation and fail-closed path, evidence and response limits. Published independently from the ADR Guard CLI and VS Code extension.</PackageReleaseNotes>
+    <PackageProjectUrl>https://github.com/rodri-oliveira-dev/adr-guard</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rodri-oliveira-dev/adr-guard</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <RepositoryCommit Condition="'$(RepositoryCommit)' == ''">$(SourceRevisionId)</RepositoryCommit>
+    <Copyright>Copyright © 2026 Rodrigo de Oliveira</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="ModelContextProtocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AdrGuard/AdrGuard.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AdrGuard.Mcp.Tests" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="CHANGELOG.md" Pack="true" PackagePath="/" />
+    <None Include="../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>
