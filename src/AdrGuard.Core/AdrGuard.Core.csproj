@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>AdrGuard.Core</AssemblyName>
+    <RootNamespace>AdrGuard</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="adr-guard" />
+    <InternalsVisibleTo Include="adr-guard-mcp" />
+    <InternalsVisibleTo Include="AdrGuard.Tests" />
+  </ItemGroup>
+</Project>
