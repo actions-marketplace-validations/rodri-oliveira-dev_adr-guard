@@ -6,6 +6,8 @@ O workflow `MCP Release` (`.github/workflows/mcp-release.yml`) é independente d
 
 O MCP `1.0.0` foi publicado no [NuGet.org](https://www.nuget.org/packages/RodriOliveira.AdrGuard.Mcp/1.0.0), em uma [GitHub Release própria](https://github.com/rodri-oliveira-dev/adr-guard/releases/tag/mcp/v1.0.0) e no MCP Registry. O GitHub Packages é um feed NuGet secundário e autenticado; a disponibilidade da versão `1.0.0` nesse canal depende da execução do workflow de backfill após o merge desta mudança.
 
+O MCP `1.0.1` é uma candidata a release não publicada. O baseline do projeto é `1.0.1`, enquanto `.mcp/server.json` mantém intencionalmente a última publicação no Registry, `1.0.0`. O workflow manual substitui de forma estrutural os dois campos de versão do manifesto pelo input explícito de `workflow_dispatch`, valida o manifesto gerado e só o publica depois dos gates do pacote e da GitHub Release.
+
 ## Administração única obrigatória
 
 1. No NuGet.org, confirme que `rodri-oliveira-dev` possui ou pode criar `RodriOliveira.AdrGuard.Mcp`.
@@ -21,7 +23,7 @@ O workflow compila um `.nupkg` dependente do framework, valida o marcador do REA
 
 Reexecuções preservam versão e SHA originais. A etapa de reserva distingue HTTP `404` (criar uma nova tag) de HTTP `200` (verificar o commit exato da tag existente) e interrompe a publicação em erros de autorização, transporte ou servidor. As respostas da API do GitHub são limitadas a 64 KiB, e o token temporário é transmitido ao curl pela configuração na entrada padrão, nunca como argumento do processo. Tags de reserva/release existentes devem apontar para esse SHA. Versões NuGet e Registry existentes devem comprovar metadados equivalentes ou o workflow falha de forma fechada. Etapas posteriores ausentes podem ser retomadas; artefatos imutáveis e tags nunca são sobrescritos ou movidos.
 
-Os assets são o `.nupkg` MCP, `SHA256SUMS`, `server.json` validado e notas específicas do MCP. O pacote não é binário nativo autossuficiente. Disponibilidade preview e mudanças de schema do Registry continuam riscos externos, e workflows de PR/push nunca publicam.
+Os assets são o `.nupkg` MCP, `SHA256SUMS`, `server.json` validado e notas específicas do MCP. As notas-fonte podem conter orientações de pré-publicação entre marcadores `release-candidate-only`. Durante o empacotamento, `scripts/render-release-notes.sh` remove esses blocos marcados e falha de forma fechada quando os marcadores estão ausentes, aninhados ou desbalanceados; o `RELEASE_NOTES.md` neutro resultante é usado tanto como asset imutável quanto como corpo da GitHub Release. O pacote não é binário nativo autossuficiente. Disponibilidade preview e mudanças de schema do Registry continuam riscos externos, e workflows de PR/push nunca publicam.
 
 ## GitHub Packages: publicação retroativa da release existente
 
