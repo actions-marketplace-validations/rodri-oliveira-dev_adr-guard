@@ -4,11 +4,15 @@
 
 ADR Guard is a .NET tool for creating, validating, indexing, reviewing, impact-mapping, and deterministically checking Architecture Decision Records (ADRs). The product treats ADRs as human decisions: AI integrations may provide bounded evidence or advice, but must never imply architectural approval or compliance.
 
-The repository has three principal product surfaces:
+The repository has two executable products and several adapters and distribution surfaces:
 
-- `src/AdrGuard`: the authoritative .NET CLI and all domain behavior, including parsing, validation, generation, review contracts, impact analysis, baselines, and architectural-drift evidence.
+- `src/AdrGuard`: the authoritative .NET CLI executable and its command, presentation, provider, and filesystem adapters.
+- `src/AdrGuard.Mcp`: the read-only MCP executable, with seven versioned tools over stdio and a direct reference to Core.
+- `src/AdrGuard.Core`: the internal, non-packable .NET class library that owns shared parsing, validation, configuration, Git inventory, impact, and drift behavior. It never references either executable.
 - `extensions/vscode`: a workspace-host TypeScript adapter. It discovers and invokes the CLI, validates versioned output contracts, and presents results in VS Code. It must not reimplement CLI business rules.
-- `website`: the Astro/Starlight documentation portal. It consumes the public English and pt-BR documentation and validates routes, links, SEO, HTML, spelling, and accessibility-related behavior.
+- The root `action.yml` and container image adapt the released CLI contract for GitHub Actions.
+
+The Astro/Starlight `website` is the generated documentation portal rather than a product runtime. The eleven top-level `skills/adr-guard-*` directories are packaged consumer artifacts, not contributor tooling.
 
 The root composite GitHub Action is also an adapter around the released CLI/container contract. Keep decision logic in the .NET core; UI, Action, provider, filesystem, Git, and process code are boundary adapters.
 
@@ -16,16 +20,21 @@ The root composite GitHub Action is also an adapter around the released CLI/cont
 
 | Path | Responsibility |
 | --- | --- |
-| `src/AdrGuard/Cli` | Command parsing, exit codes, output selection, and orchestration. |
-| `src/AdrGuard/{Parsing,Validation,Generation,Indexing,Baselines}` | Core ADR workflows and deterministic validation. |
-| `src/AdrGuard/{Impact,Drift}` | Versioned mappings, evidence, findings, baselines, and architectural-drift analysis. |
+| `src/AdrGuard.Core/{Model,Parsing,Validation}` | ADR models, parsers, deterministic validation, relations, and report contracts. |
+| `src/AdrGuard.Core/{Configuration,Git,Impact,Drift}` | Shared configuration, bounded Git inventory, impact analysis, and drift rules/policy. |
+| `src/AdrGuard/Cli` | CLI command parsing, exit codes, output selection, and orchestration. |
+| `src/AdrGuard/{Generation,Indexing,Baselines}` | CLI-owned write workflows and presentation-specific baseline/index orchestration. |
 | `src/AdrGuard/Review` | Optional provider adapters, bounded review context, policy, security boundary, and versioned reports. |
-| `src/AdrGuard/Git` | Narrow Git process and change-inventory adapters. |
-| `tests/AdrGuard.Tests` | xUnit v3 unit and integration tests, organized to mirror production areas. |
+| `src/AdrGuard.Mcp` | MCP stdio host, versioned tool contracts, transport DTOs, and workspace adapter. |
+| `tests/AdrGuard.Tests` | xUnit v3 Core/CLI unit, contract, and integration tests, organized to mirror production areas. |
+| `tests/AdrGuard.Mcp.Tests` | xUnit v3 MCP protocol, workspace, security, and packaged-tool tests. |
 | `tests/AdrGuard.Tests/Fixtures` | Checked-in deterministic compatibility and contract fixtures. |
 | `extensions/vscode` | VS Code extension source, contracts, tests, localization, and VSIX verification. |
 | `docs` | Public source documentation, schemas, ADRs, examples, and release documentation. |
 | `website` | Generated documentation portal and its validation tooling. |
+| `.mcp/server.json` | MCP Registry manifest for the independently versioned MCP package. |
+| `action.yml` | Composite GitHub Action adapter around the published CLI container. |
+| `benchmarks/AdrGuard.Benchmarks` | Explicit CLI performance baselines; not part of correctness testing. |
 | `.github/workflows` | CI, release, security, portal, extension, and distribution gates. |
 | `.agents/skills` | Contributor-facing Codex workflows for developing this repository. |
 | `.agents/skill-overlays` | Repository bindings for portable skills. |
@@ -38,6 +47,9 @@ The root composite GitHub Action is also an adapter around the released CLI/cont
 - Fail closed when evidence is missing, malformed, unsupported, outside its declared scope, or cannot be verified. Represent uncertainty as `unknown`/inconclusive rather than inferred compliance.
 - Keep parsing, policy, validation, impact, and drift rules in the .NET core. The VS Code extension and GitHub Action invoke and adapt the CLI; they do not maintain parallel rule engines.
 - Preserve separation between pure decisions and adapters for files, Git, processes, HTTP providers, console rendering, VS Code, and GitHub Actions.
+- Keep the project graph `AdrGuard -> AdrGuard.Core` and `AdrGuard.Mcp -> AdrGuard.Core`, with no Core-to-executable, MCP-to-CLI, or CLI-to-MCP dependency. Automated graph guards enforce these boundaries.
+- Move reusable rules to Core by cohesive dependency seam. Keep CLI presentation, command routing and exit-code adaptation in the CLI, and keep MCP transport/contracts in MCP; never duplicate rules between adapters.
+- Keep Core implementation types `internal` by default. Grant only assembly-specific test or consumer visibility when required; do not widen public APIs merely to cross a project boundary.
 - Treat JSON/SARIF schemas, CLI arguments and exit codes, Action inputs/outputs, configuration formats, report fields, extension settings/commands, and skill frontmatter as versioned public contracts.
 - Maintain backward compatibility unless a breaking change is explicit, documented, tested, and versioned. Reject unknown contract versions and unexpected data where strict parsing is part of the security boundary.
 - Keep outputs reviewable and traceable to concrete files, rules, evidence, provider metadata, hashes, and repository state. Do not invent evidence.

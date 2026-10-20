@@ -67,6 +67,11 @@ jobs:
         run: |
           test -s "artifacts/package/RodriOliveira.AdrGuard.${ADR_GUARD_VERSION}.nupkg"
           package_file="artifacts/package/RodriOliveira.AdrGuard.${ADR_GUARD_VERSION}.nupkg"
+          unzip -Z1 "${package_file}" | grep -Fxq 'tools/net10.0/any/AdrGuard.Core.dll'
+          if unzip -Z1 "${package_file}" | grep -Fxq 'tools/net10.0/any/adr-guard-mcp.dll'; then
+            echo "::error::CLI package must not contain the MCP executable assembly."
+            exit 1
+          fi
           unzip -Z1 "${package_file}" | grep -Fxq 'icon-nuget.png'
           unzip -p "${package_file}" RodriOliveira.AdrGuard.nuspec | grep -Fq '<icon>icon-nuget.png</icon>'
           cmp images/icon-nuget.png <(unzip -p "${package_file}" icon-nuget.png)
@@ -76,19 +81,19 @@ jobs:
           cmp CHANGELOG.md <(unzip -p "${package_file}" CHANGELOG.md)
           nuspec="$(unzip -p "${package_file}" RodriOliveira.AdrGuard.nuspec)"
           grep -Fq '<releaseNotes>' <<< "${nuspec}"
-          grep -Fq 'Coordinates the documented CLI contracts used by ADR Guard for VS Code 1.1.0 and ADR Guard MCP 1.0.0' <<< "${nuspec}"
-          grep -Fq 'Keeps validation, form, JSON/SARIF, impact, drift, review, catalog and exit-code contracts backward compatible' <<< "${nuspec}"
+          package_release_notes="$(dotnet msbuild src/AdrGuard/AdrGuard.csproj -nologo -getProperty:PackageReleaseNotes | tr -d '\r')"
+          test -n "${package_release_notes//[[:space:]]/}"
           grep -Fq "releases/tag/v${ADR_GUARD_VERSION}" <<< "${nuspec}"
           test "$(dotnet msbuild src/AdrGuard/AdrGuard.csproj -nologo -getProperty:PackageVersion | tr -d '\r' | tail -n 1)" = "${ADR_GUARD_VERSION}"
 
       - name: Install packaged tool
-        run: >
-          dotnet tool install
-          --tool-path ./.tools
-          RodriOliveira.AdrGuard
-          --version "${ADR_GUARD_VERSION}"
-          --add-source ./artifacts/package
-          --ignore-failed-sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet new nugetconfig --output artifacts/cli-source --force
+          dotnet nuget remove source nuget --configfile artifacts/cli-source/nuget.config
+          dotnet nuget add source "${GITHUB_WORKSPACE}/artifacts/package" --name cli-local --configfile artifacts/cli-source/nuget.config
+          dotnet tool install --tool-path ./.tools RodriOliveira.AdrGuard --version "${ADR_GUARD_VERSION}" --configfile artifacts/cli-source/nuget.config
 
       - name: Verify bilingual ADR review documentation
         run: bash scripts/adr-review-docs-test.sh ./.tools/adr-guard
@@ -108,7 +113,11 @@ jobs:
           test -s "${package}"
           unzip -Z1 "${package}" | grep -Fxq 'README.md'
           unzip -Z1 "${package}" | grep -Fxq 'LICENSE'
-          unzip -Z1 "${package}" | grep -Fxq 'tools/net10.0/any/adr-guard.dll'
+          unzip -Z1 "${package}" | grep -Fxq 'tools/net10.0/any/AdrGuard.Core.dll'
+          if unzip -Z1 "${package}" | grep -Fxq 'tools/net10.0/any/adr-guard.dll'; then
+            echo "::error::MCP package must not contain the CLI executable assembly."
+            exit 1
+          fi
           unzip -Z1 "${package}" | grep -Fxq 'tools/net10.0/any/adr-guard-mcp.deps.json'
           unzip -p "${package}" README.md | grep -Fq '<!-- mcp-name: io.github.rodri-oliveira-dev/adr-guard -->'
 
